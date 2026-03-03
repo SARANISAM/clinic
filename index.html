@@ -14,63 +14,7 @@
     rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #030014;
-    }
-
-    h1,
-    h2,
-    .font-display {
-      font-family: 'Outfit', sans-serif;
-    }
-
-    .fade-in {
-      animation: fadeIn 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .glass {
-      background: rgba(8, 6, 41, 0.7);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(174, 171, 204, 0.1);
-    }
-
-    .premium-gradient {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    }
-
-    .gold-accent {
-      background: linear-gradient(135deg, #d4af37 0%, #f1c40f 100%);
-    }
-
-    /* Luxurious Background Decorations */
-    .bg-glow {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80vw;
-      height: 80vh;
-      background: radial-gradient(circle, rgba(67, 56, 202, 0.08) 0%, rgba(3, 0, 20, 0) 70%);
-      z-index: -1;
-      pointer-events: none;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="min-h-screen flex flex-col items-center justify-center p-6 text-white overflow-x-hidden">
@@ -85,16 +29,19 @@
     <div class="flex justify-center gap-8 mb-24">
       <!-- Admin Icon Portal -->
       <div class="group relative">
-        <button
-          class="w-16 h-16 premium-gradient text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group-hover:scale-110 active:scale-95"
-          title="Administration">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+        <a href="admin_login.html">
+          <button
+            class="w-16 h-16 premium-gradient text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group-hover:scale-110 active:scale-95"
+            title="Administration">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </a>
         <span
           class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-slate-500 text-[10px] font-medium uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-300">Admin</span>
       </div>
