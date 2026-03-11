@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Appointments</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>Doctor Panel</h2>
+    <a href="doctordashboard.html">Dashboard</a>
+    <a href="doctorappointment.html">Appointments</a>
+    <a href="doctorpatients.html">Patients</a>
+    <a href="addtreatment.html">Add Treatment</a>
+    <a href="editprofile.html">Edit Profile</a>
+</div>
+
+<div class="main">
+    <h1>Appointments</h1>
+
+    <!-- Add Appointment Form -->
+    <div class="card">
+        <form id="appointmentForm">
+            <label>Patient Name</label>
+            <input type="text" id="patientName" required>
+
+            <label>Date</label>
+            <input type="date" id="appointmentDate" required>
+
+            <button type="submit">Add Appointment</button>
+        </form>
+        <p id="successMessage" style="color:green;"></p>
+    </div>
+
+    <!-- Appointment List -->
+    <div id="appointmentContainer"></div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const form = document.getElementById("appointmentForm");
+    const container = document.getElementById("appointmentContainer");
+
+    let appointments = JSON.parse(localStorage.getItem("appointments")) || [];
+
+    function displayAppointments() {
+        container.innerHTML = "";
+
+        appointments.forEach((app, index) => {
+            const card = document.createElement("div");
+            card.className = "card";
+
+            card.innerHTML = `
+                <p><strong>Patient:</strong> ${app.patientName}</p>
+                <p><strong>Date:</strong> ${app.date}</p>
+                <p><strong>Status:</strong> ${app.status}</p>
+
+                <button onclick="markCompleted(${index})">Mark Completed</button>
+                <button onclick="cancelAppointment(${index})">Cancel</button>
+            `;
+
+            container.appendChild(card);
+        });
+    }
+
+    displayAppointments();
+
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        const patientName = document.getElementById("patientName").value;
+        const date = document.getElementById("appointmentDate").value;
+
+        appointments.push({
+            patientName: patientName,
+            date: date,
+            status: "Pending"
+        });
+
+        localStorage.setItem("appointments", JSON.stringify(appointments));
+
+        document.getElementById("successMessage").innerText =
+            "Appointment Added Successfully!";
+
+        form.reset();
+        displayAppointments();
+    });
+
+    window.markCompleted = function(index) {
+        appointments[index].status = "Completed";
+        localStorage.setItem("appointments", JSON.stringify(appointments));
+        displayAppointments();
+    };
+
+    window.cancelAppointment = function(index) {
+        appointments.splice(index, 1);
+        localStorage.setItem("appointments", JSON.stringify(appointments));
+        displayAppointments();
+    };
+
+});
+</script>
+
+</body>
+</html>

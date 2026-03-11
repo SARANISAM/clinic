@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Profile</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>Doctor Panel</h2>
+    <a href="doctordashboard.html">Dashboard</a>
+    <a href="doctorappointment.html">Appointments</a>
+    <a href="doctorpatients.html">Patients</a>
+    <a href="addtreatment.html">Add Treatment</a>
+    <a href="editprofile.html">Edit Profile</a>
+</div>
+
+<div class="main">
+    <h1>Edit Profile</h1>
+
+    <div class="card">
+        <label>Contact</label>
+        <input type="text" value="987542136">
+
+        <label>Specialization</label>
+        <input type="text" value="Cardiology">
+
+        <label>Available Time</label>
+        <input type="text" value="4:00pm">
+
+        <button onclick="updateProfile()">Update Profile</button>
+    </div>
+</div>
+
+<script src="js/doc.js"></script>
+</body>
+</html>

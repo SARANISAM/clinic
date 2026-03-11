@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Doctor Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>Doctor Panel</h2>
+    <a href="doctor_dashboard.html">Dashboard</a>
+    <a href="doctorappointment.html">Appointment</a>
+    <a href="doctorpatients.html">Patients</a>
+    <a href="addtreatment.html">Add Treatment</a>
+    <a href="editprofile.html">Edit Profile</a>
+</div>
+
+<div class="main">
+    <h1>Welcome Doctor 👨‍⚕️</h1>
+
+    <div class="card">
+        <h3>Today's Appointments</h3>
+        <p>5 Appointments Scheduled</p>
+    </div>
+
+    <div class="card">
+        <h3>Total Patients</h3>
+        <p>120 Patients</p>
+    </div>
+
+</div>
+<script>
+if (!localStorage.getItem("doctorEmail")) {
+    window.location.href = "index.html";
+}
+</script>
+<script src="js/doc.js"></script>
+<button onclick="logout()">Logout</button>
+<script>
+function logout() {
+    localStorage.removeItem("doctorLoggedIn");
+    window.location.href = "index.html";
+}
+</script>
+</body>
+</html>

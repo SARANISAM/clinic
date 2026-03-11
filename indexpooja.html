@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Doctor Login</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="main" style="margin-left:0; display:flex; justify-content:center; align-items:center; height:100vh;">
+    
+    <div class="card" style="width:350px;">
+
+        <h2 style="text-align:center;">Doctor Registration</h2>
+
+        <!-- REGISTER FORM -->
+        <form id="registerForm">
+
+            <label>Email</label>
+            <input type="email" id="regEmail" required>
+
+            <label>Password</label>
+            <input type="password" id="regPassword" required>
+
+            <button type="submit" style="margin-top:15px;">Register</button>
+
+        </form>
+
+        <p id="registerMessage" style="color:green; text-align:center;"></p>
+
+        <hr style="margin:20px 0;">
+
+        <h2 style="text-align:center;">Doctor Login</h2>
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm">
+
+            <label>Email</label>
+            <input type="email" id="loginEmail" required>
+
+            <label>Password</label>
+            <input type="password" id="loginPassword" required>
+
+            <button type="submit" style="margin-top:15px;">Login</button>
+
+        </form>
+
+        <p id="loginMessage" style="color:red; text-align:center;"></p>
+
+    </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+    // REGISTER
+    document.getElementById("registerForm").addEventListener("submit", function(event){
+        event.preventDefault();
+
+        const email = document.getElementById("regEmail").value;
+        const password = document.getElementById("regPassword").value;
+
+        localStorage.setItem("doctorEmail", email);
+        localStorage.setItem("doctorPassword", password);
+
+        document.getElementById("registerMessage").innerText =
+            "Registration Successful! You can now login.";
+
+        this.reset();
+    });
+
+    // LOGIN
+    document.getElementById("loginForm").addEventListener("submit", function(event){
+        event.preventDefault();
+
+        const email = document.getElementById("loginEmail").value;
+        const password = document.getElementById("loginPassword").value;
+
+        const savedEmail = localStorage.getItem("doctorEmail");
+        const savedPassword = localStorage.getItem("doctorPassword");
+
+        if (email === savedEmail && password === savedPassword) {
+
+            localStorage.setItem("doctorLoggedIn", "true");
+
+            window.location.href = "doctordashboard.html";
+
+        } else {
+            document.getElementById("loginMessage").innerText =
+                "Invalid Email or Password";
+        }
+    });
+
+});
+</script>
+
+</body>
+</html>
