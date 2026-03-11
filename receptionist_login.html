@@ -2,62 +2,106 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receptionist Login - AstraCare</title>
-    <link rel="stylesheet" href="stylereception.css">
-    <style>
-        /* Small layout adjustments for login-specific view */
-        .login-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: calc(100vh - 120px);
-            padding: 20px;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receptionist Login - AstraCare</title>
 
-        .login-card {
-            max-width: 400px;
-            width: 100%;
-        }
+<link rel="stylesheet" href="stylereception.css">
 
-        .login-title {
-            text-align: center;
-            margin-bottom: 25px;
-            color: gold;
-        }
-    </style>
+<style>
+
+.login-container{
+display:flex;
+justify-content:center;
+align-items:center;
+min-height:calc(100vh - 120px);
+padding:20px;
+}
+
+.login-card{
+max-width:400px;
+width:100%;
+}
+
+.login-title{
+text-align:center;
+margin-bottom:25px;
+color:gold;
+}
+
+.signup-link{
+text-align:center;
+margin-top:15px;
+font-size:14px;
+}
+
+.signup-link a{
+color:#0a1f44;
+font-weight:bold;
+text-decoration:none;
+}
+
+.signup-link a:hover{
+color:gold;
+}
+
+</style>
+
 </head>
 
 <body>
-    <header>
-        <h1>AstraCare Medical Center</h1>
-        <p>Receptionist Portal Access</p>
-    </header>
 
-    <main class="login-container">
-        <div class="login-card">
-            <h2 class="login-title">Sign In</h2>
-            <form action="dashr.html">
-                <label for="username"
-                    style="display:block; margin-bottom:5px; color:#0a1f44; font-weight:600;">Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+<header>
+<h1>AstraCare Medical Center</h1>
+<p>Receptionist Portal Access</p>
+</header>
 
-                <label for="password"
-                    style="display:block; margin-top:15px; margin-bottom:5px; color:#0a1f44; font-weight:600;">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+<main class="login-container">
 
-                <button type="submit" style="margin-top:25px; font-weight:bold;">Login to Dashboard</button>
-            </form>
-            <div style="text-align:center;">
-                <a href="index.html" class="back-button">← Back to Clinic Home</a>
-            </div>
-        </div>
-    </main>
+<div class="login-card">
 
-    <footer style="text-align:center; padding:20px; color:#ccc; font-size:12px;">
-        &copy; 2026 AstraCare Medical Group. Secure Access.
-    </footer>
+<h2 class="login-title">Sign In</h2>
+
+<form action="dashr.html">
+
+<label for="username"
+style="display:block;margin-bottom:5px;color:#0a1f44;font-weight:600;">
+Username
+</label>
+
+<input type="text" id="username" name="username" placeholder="Enter your username" required>
+
+<label for="password"
+style="display:block;margin-top:15px;margin-bottom:5px;color:#0a1f44;font-weight:600;">
+Password
+</label>
+
+<input type="password" id="password" name="password" placeholder="Enter your password" required>
+
+<button type="submit" style="margin-top:25px;font-weight:bold;">
+Login to Dashboard
+</button>
+
+</form>
+
+<!-- SIGN UP LINK -->
+
+<div class="signup-link">
+Don't have an account?
+<a href="signup.html">Sign Up</a>
+</div>
+
+<div style="text-align:center;margin-top:20px;">
+<a href="index.html" class="back-button">← Back to Clinic Home</a>
+</div>
+
+</div>
+
+</main>
+
+<footer style="text-align:center;padding:20px;color:#ccc;font-size:12px;">
+© 2026 AstraCare Medical Group. Secure Access.
+</footer>
+
 </body>
-
 </html>
