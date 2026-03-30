@@ -236,6 +236,23 @@ app.put("/appointments/cancel/:id", async (req, res) => {
 
   res.json(data)
 })
+// Mark Appointment as Completed
+app.put("/appointments/complete/:id", async (req, res) => {
+
+  const id = req.params.id
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .update({ status: "Completed" })
+    .eq("appointment_id", id)
+
+  if (error) return res.status(500).json(error)
+
+  res.json({
+    message: "Appointment marked as completed",
+    data
+  })
+})
 
 /* =========================
    TREATMENT RECORDS
@@ -301,6 +318,95 @@ app.get("/bills/:patient_id", async (req, res) => {
   if (error) return res.status(500).json(error)
 
   res.json(data)
+})
+// Generate Bill from Appointment
+app.post("/generate-bill/:appointment_id", async (req, res) => {
+
+  const appointment_id = req.params.appointment_id
+
+  try {
+    const { data: appointment } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("appointment_id", appointment_id)
+      .single()
+
+    const amount = 500
+
+    const { data, error } = await supabase
+      .from("bills")
+      .insert([{
+        bill_id: uuidv4(),
+        patient_id: appointment.patient_id,
+        appointment_id,
+        amount,
+        bill_date: new Date(),
+        payment_status: "Pending"
+      }])
+
+    if (error) return res.status(500).json(error)
+
+    res.json({ message: "Bill generated", data })
+
+  } catch (err) {
+    res.status(500).json(err)
+  }
+})
+/* =========================
+   DISCHARGE MANAGEMENT
+========================= */
+
+// Generate Discharge Summary
+app.post("/generate-discharge/:appointment_id", async (req, res) => {
+
+  const appointment_id = req.params.appointment_id
+
+  try {
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .select(`
+        patient_id,
+        patients (name, age, gender),
+        treatments (diagnosis, prescription)
+      `)
+      .eq("appointment_id", appointment_id)
+      .single()
+
+    if (error) return res.status(500).json(error)
+
+    const patient = data.patients
+    const treatment = data.treatments?.[0]
+
+    const summary = `
+--- Discharge Summary ---
+
+Patient: ${patient.name}
+Age: ${patient.age}
+Gender: ${patient.gender}
+
+Diagnosis:
+${treatment?.diagnosis || "N/A"}
+
+Prescription:
+${treatment?.prescription || "N/A"}
+
+Advice:
+Take medicines properly and follow up if needed.
+`
+
+    await supabase.from("discharge").insert([{
+      discharge_id: uuidv4(),
+      appointment_id,
+      patient_id: data.patient_id,
+      generated_summary: summary
+    }])
+
+    res.json({ summary })
+
+  } catch (err) {
+    res.status(500).json(err)
+  }
 })
 /* =========================
    RECEPTIONIST SIGNUP
@@ -397,8 +503,8 @@ app.post("/doctor-login", async (req, res) => {
    SERVER
 ========================= */
 
-app.listen(process.env.PORT, () => {
+const PORT = process.env.PORT || 5000;
 
-  console.log(`Server running on port ${process.env.PORT}`)
-
-})
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
