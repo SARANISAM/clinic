@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Doctor Dashboard</title>
+    <link rel="stylesheet" href="stylep.css">
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>Doctor Panel</h2>
+        <a href="doctordashboard.html">Dashboard</a>
+        <a href="doctorappointment.html">Appointment</a>
+        <a href="doctorpatients.html">Patients</a>
+        <a href="addtreatment.html">Add Treatment</a>
+        
+    </div>
+
+    <div class="main">
+        <h1 id="welcomeMsg">Welcome Doctor 👨‍⚕️</h1>
+
+        <div class="card">
+            <h3>Today's Appointments</h3>
+            <p id="appointmentCount">Loading...</p>
+        </div>
+
+        <div class="card">
+            <h3>Total Patients</h3>
+            <p id="patientCount">Loading...</p>
+        </div>
+
+        <!-- logout / back to login button -->
+        <button onclick="logout()" style="margin-top: 20px; padding: 10px 16px;">
+            Logout / Back to Login
+        </button>
+    </div>
+
+    <script>
+        const API_URL = "https://clinic-tm9b.onrender.com";
+
+        document.addEventListener("DOMContentLoaded", async function () {
+
+            // ✅ FIXED: check "doctor" key — same key saved in indexpooja.html
+            const doctor = JSON.parse(localStorage.getItem("doctor"));
+
+            if (!doctor) {
+                window.location.href = "indexpooja.html";
+                return;
+            }
+
+            // SHOW DOCTOR NAME from login response
+            // data.doctor = { user_id, name, email, doctors: [{ doctor_id, specialization, availability }] }
+            const name = doctor.name || doctor.user_id || "Doctor";
+            document.getElementById("welcomeMsg").textContent = "Welcome, Dr. " + name + " 👨‍⚕️";
+
+            // DOCTOR IDs for filtering
+            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
+            const docUserId = doctor.user_id || doctor.name;
+            const docDocId = doctorInfo.doctor_id;
+
+            // LOAD TODAY'S APPOINTMENT COUNT
+            const today = new Date().toISOString().split("T")[0];
+            try {
+                const apptRes = await fetch(`${API_URL}/appointments/${today}`);
+                let apiApps = [];
+                try { apiApps = await apptRes.json(); } catch (e) { }
+
+                // Include localStorage appointments and deduplicate / sync
+                const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+                const allTodayApps = [...apiApps, ...localApps.filter(a => a.appointment_date === today)];
+
+                // Filter those belonging to the logged in doctor
+                const myTodayApps = allTodayApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+
+                // Remove duplicates if any
+                const uniqueAppts = Array.from(new Set(myTodayApps.map(a => JSON.stringify(a)))).map(e => JSON.parse(e));
+
+                const count = uniqueAppts.length;
+                document.getElementById("appointmentCount").textContent =
+                    count + " Appointment" + (count !== 1 ? "s" : "") + " Scheduled";
+            } catch (err) {
+                document.getElementById("appointmentCount").textContent = "Unable to load";
+            }
+
+            // LOAD TOTAL PATIENTS (Unique patients from historical and active appointments)
+            try {
+                const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+
+                // Filter those belonging to the logged in doctor
+                const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+
+                // Extract unique patient IDs
+                const myPatientIds = new Set(myHistoricalApps.map(a => a.patient_id));
+                const count = myPatientIds.size;
+
+                if (count === 0) {
+                    // Fallback to 0 if no local history, or we could just show 0
+                    document.getElementById("patientCount").textContent = "0 Patients";
+                } else {
+                    document.getElementById("patientCount").textContent =
+                        count + " Patient" + (count !== 1 ? "s" : "");
+                }
+            } catch (err) {
+                document.getElementById("patientCount").textContent = "Unable to load";
+            }
+
+        });
+
+        function logout() {
+            localStorage.removeItem("doctor");
+            window.location.href = "indexpooja.html";
+        }
+    </script>
+
+</body>
+
+</html>

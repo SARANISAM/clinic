@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Appointments</title>
+    <link rel="stylesheet" href="stylep.css">
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>Doctor Panel</h2>
+        <a href="doctordashboard.html">Dashboard</a>
+        <a href="doctorappointment.html">Appointments</a>
+        <a href="doctorpatients.html">Patients</a>
+        <a href="addtreatment.html">Add Treatment</a>
+
+    </div>
+
+    <div class="main">
+        <h1>Appointments</h1>
+
+        <!-- Appointment List -->
+        <div id="appointmentContainer"></div>
+    </div>
+
+    <script>
+        const API_URL = "https://clinic-tm9b.onrender.com";
+
+        document.addEventListener("DOMContentLoaded", async function () {
+
+            const container = document.getElementById("appointmentContainer");
+            const doctor = JSON.parse(localStorage.getItem("doctor"));
+
+            if (!doctor) {
+                window.location.href = "indexpooja.html";
+                return;
+            }
+
+            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
+            const docUserId = doctor.user_id || doctor.name;
+            const docDocId = doctorInfo.doctor_id;
+
+            // Load all appointments from localStorage
+            let allAppointments = JSON.parse(localStorage.getItem("allAppointments")) || [];
+
+            // Fetch all appointments for this doctor from backend
+            try {
+                const res = await fetch(`${API_URL}/appointments/doctor/${docDocId || docUserId}`);
+                if (res.ok) {
+                    const apiApps = await res.json();
+
+                    // Filter out local appointments that are already in the API results (by ID)
+                    // and merge the rest. This ensures we have the latest server data.
+                    apiApps.forEach(apiApp => {
+                        const index = allAppointments.findIndex(a => a.appointment_id === apiApp.appointment_id);
+                        if (index !== -1) {
+                            allAppointments[index] = apiApp; // Update with server version
+                        } else {
+                            allAppointments.push(apiApp); // Add new from server
+                        }
+                    });
+
+                    // Also filter to make sure allAppointments only contains this doctor's appointments
+                    // but we'll do that in the final filtering step.
+                }
+            } catch (e) { console.error("Failed to fetch appointments from backend:", e); }
+
+            // Filter appointments for this specific doctor
+            let myAppointments = allAppointments.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+
+            window.displayAppointments = function () {
+                container.innerHTML = "";
+
+                if (!myAppointments.length) {
+                    container.innerHTML = "<p>No appointments found.</p>";
+                    return;
+                }
+
+                myAppointments.forEach((app) => {
+                    const card = document.createElement("div");
+                    card.className = "card";
+
+                    const currentStatus = app.status || "Scheduled";
+                    card.innerHTML = `
+                <p><strong>Patient:</strong> ${app.patientName || app.patient_id || "Unknown"}</p>
+                <p><strong>Date/Time:</strong> ${app.appointment_date} ${app.appointment_time || ""}</p>
+                <p><strong>Status:</strong> <span class="status-text">${currentStatus}</span></p>
+            `;
+
+                    container.appendChild(card);
+                });
+            }
+
+            displayAppointments();
+
+        });
+    </script>
+
+</body>
+
+</html>

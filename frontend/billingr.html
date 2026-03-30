@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Billing Management - AstraCare</title>
+  <link rel="stylesheet" href="stylereception.css" />
+</head>
+<body>
+
+<header>
+  <h1>AstraCare Medical Center</h1>
+  <p>Receptionist - Billing Management</p>
+</header>
+
+<main>
+
+<a href="dashr.html" class="back-button">← Back to Dashboard</a>
+
+<h2>Generate Invoice</h2>
+
+<form id="billingForm">
+
+  <!-- ✅ PATIENT -->
+  <select id="patient" required>
+    <option value="">Select Patient*</option>
+  </select>
+
+  <input type="date" id="date" required />
+
+  <input type="number" id="consultation" placeholder="Consultation Fee (₹)" oninput="calculateTotal()" />
+  <input type="number" id="tests" placeholder="Lab Tests (₹)" oninput="calculateTotal()" />
+  <input type="number" id="medicines" placeholder="Medicines (₹)" oninput="calculateTotal()" />
+  <input type="number" id="others" placeholder="Other Charges (₹)" oninput="calculateTotal()" />
+
+  <input type="text" id="totalAmount" placeholder="Total Amount (₹)" readonly />
+
+  <select id="status" required>
+    <option value="">Payment Status*</option>
+    <option>Paid</option>
+    <option>Unpaid</option>
+    <option>Pending</option>
+  </select>
+
+  <button type="submit">Generate Invoice</button>
+
+</form>
+
+<p id="message"></p>
+
+<h3>Billing Records</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Patient</th>
+      <th>Services</th>
+      <th>Total (₹)</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="billingTable"></tbody>
+</table>
+
+</main>
+
+<script>
+
+const API_URL = "https://clinic-tm9b.onrender.com";
+
+// ✅ CALCULATE TOTAL
+function calculateTotal() {
+  const consultation = parseFloat(document.getElementById('consultation').value) || 0;
+  const tests = parseFloat(document.getElementById('tests').value) || 0;
+  const medicines = parseFloat(document.getElementById('medicines').value) || 0;
+  const others = parseFloat(document.getElementById('others').value) || 0;
+
+  const total = consultation + tests + medicines + others;
+  document.getElementById('totalAmount').value = total.toFixed(2);
+}
+
+// ✅ LOAD PATIENTS
+async function loadPatients() {
+  const res = await fetch(`${API_URL}/patients`);
+  const data = await res.json();
+
+  const select = document.getElementById("patient");
+
+  data.forEach(p => {
+    const option = document.createElement("option");
+    option.value = p.patient_id;
+    option.textContent = p.name;
+    select.appendChild(option);
+  });
+}
+
+// ✅ LOAD BILL HISTORY
+async function loadBills(patient_id, patientName, status) {
+
+  const res = await fetch(`${API_URL}/bills/${patient_id}`);
+  const bills = await res.json();
+
+  const table = document.getElementById("billingTable");
+  table.innerHTML = "";
+
+  bills.forEach(b => {
+
+    const row = `
+      <tr>
+        <td>${new Date(b.bill_date).toLocaleDateString()}</td>
+        <td>${patientName || "Unknown Patient"}</td>
+        <td>Consultation + Tests</td>
+        <td>₹${b.amount}</td>
+        <td>${status || "Paid"}</td>
+      </tr>
+    `;
+
+    table.innerHTML += row;
+  });
+}
+
+// ✅ SUBMIT BILL
+document.getElementById("billingForm").addEventListener("submit", async function(e) {
+
+  e.preventDefault();
+
+  const patient_id = document.getElementById("patient").value;
+  const amount = document.getElementById("totalAmount").value;
+
+  try {
+
+    await fetch(`${API_URL}/bills`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        patient_id,
+        amount
+      })
+    });
+
+    const patientName = document.getElementById("patient").selectedOptions[0].text;
+    const paymentStatus = document.getElementById("status").value;
+
+    document.getElementById("message").innerText = "Invoice Generated!";
+    document.getElementById("billingForm").reset();
+
+    // reload table
+    loadBills(patient_id, patientName, paymentStatus);
+
+  } catch {
+    document.getElementById("message").innerText = "Error generating bill";
+  }
+
+});
+
+// LOAD PATIENTS ON START
+loadPatients();
+
+</script>
+
+</body>
+</html>

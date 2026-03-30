@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Doctor Login</title>
+    <link rel="stylesheet" href="stylep.css">
+</head>
+
+<body>
+
+    <div class="main" style="margin-left:0; display:flex; justify-content:center; align-items:center; height:100vh;">
+
+        <div class="card" style="width:450px;">
+
+            <h2 style="text-align:center;">Doctor Login</h2>
+
+            <!-- LOGIN FORM -->
+            <form id="loginForm">
+
+                <label>Email</label>
+                <input type="email" id="loginEmail" required>
+
+                <label>Password</label>
+                <input type="password" id="loginPassword" required>
+
+                <button type="submit" id="loginButton" style="margin-top:15px;">Login</button>
+
+            </form>
+
+            <p id="loginMessage" style="text-align:center; margin-top:12px;"></p>
+
+            <div style="text-align:center; margin-top: 20px;">
+                <a href="index.html" class="back-button">← Back to Clinic Home</a>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+
+        const API_URL = "https://clinic-tm9b.onrender.com";
+
+        document.getElementById("loginForm").addEventListener("submit", async function(e) {
+
+            e.preventDefault();
+
+            const email        = document.getElementById("loginEmail").value;
+            const password     = document.getElementById("loginPassword").value;
+            const loginMessage = document.getElementById("loginMessage");
+
+            try {
+
+                const response = await fetch(`${API_URL}/doctor-login`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.message === "Doctor login successful") {
+                    localStorage.setItem("doctor", JSON.stringify(data.doctor));
+                    loginMessage.style.color = "green";
+                    loginMessage.innerText = "✅ Login successful! Redirecting...";
+                    setTimeout(() => window.location.href = "doctordashboard.html", 1500);
+                } else {
+                    loginMessage.style.color = "red";
+                    loginMessage.innerText = "❌ " + (data.message || "Invalid credentials");
+                }
+
+            } catch (err) {
+                loginMessage.style.color = "red";
+                loginMessage.innerText = "❌ Server error. Please try again.";
+            }
+
+        });
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Patients</title>
+    <link rel="stylesheet" href="stylep.css">
+    <style>
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-content {
+            background-color: #112b44;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 50%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid #1e90ff;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h2 {
+            border-bottom: 2px solid #1e90ff;
+            padding-bottom: 10px;
+            margin-top: 0;
+            color: #4db8ff;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #fff;
+        }
+
+        .history-item {
+            border-bottom: 1px solid #12395c;
+            padding: 10px 0;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>Doctor Panel</h2>
+        <a href="doctordashboard.html">Dashboard</a>
+        <a href="doctorappointment.html">Appointment</a>
+        <a href="doctorpatients.html">Patients</a>
+        <a href="addtreatment.html">Add Treatment</a>
+    </div>
+
+    <div class="main">
+        <h1>Patient List</h1>
+
+        <div id="patientContainer">
+            <!-- Dynamic data -->
+        </div>
+
+        <!-- Patient History Modal -->
+        <div id="historyModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h2 id="modalPatientName">Patient History</h2>
+                <div id="historyList">
+                    <!-- History items will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = "https://clinic-tm9b.onrender.com";
+
+        document.addEventListener("DOMContentLoaded", async function () {
+            const container = document.getElementById("patientContainer");
+            const doctor = JSON.parse(localStorage.getItem("doctor"));
+
+            if (!doctor) {
+                window.location.href = "indexpooja.html";
+                return;
+            }
+
+            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
+            const docUserId = doctor.user_id || doctor.name;
+            const docDocId = doctorInfo.doctor_id;
+
+            let apiPatients = [];
+            try {
+                const res = await fetch(`${API_URL}/patients`);
+                if (res.ok) apiPatients = await res.json();
+            } catch (e) { }
+
+            const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+
+            // Appointments assigned to me
+            const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+
+            // Unique patient IDs assigned to me
+            const myPatientIds = Array.from(new Set(myHistoricalApps.map(a => a.patient_id)));
+
+            // Map those IDs to actual patient objects
+            const myPatients = myPatientIds.map(pid => {
+                return apiPatients.find(p => p.patient_id === pid) || { patient_id: pid, name: myHistoricalApps.find(a => a.patient_id === pid).patientName };
+            });
+
+            container.innerHTML = "";
+            if (!myPatients.length) {
+                container.innerHTML = "<div class='card'><p>No patients assigned yet.</p></div>";
+                return;
+            }
+
+            myPatients.forEach(p => {
+                const card = document.createElement("div");
+                card.className = "card";
+                card.innerHTML = `
+            <p><strong>Name:</strong> ${p.name || "Unknown"}</p>
+            <p><strong>Age:</strong> ${p.age || "—"}</p>
+            <p><strong>Gender:</strong> ${p.gender || "—"}</p>
+            <button onclick="viewHistory('${p.patient_id}', '${p.name}')">View History</button>
+        `;
+                container.appendChild(card);
+            });
+        });
+
+        window.viewHistory = function (patientId, patientName) {
+            document.getElementById("modalPatientName").innerText = patientName + " - Treatment History";
+            const historyList = document.getElementById("historyList");
+
+            const treatments = JSON.parse(localStorage.getItem("treatmentHistory")) || [];
+            // We only have patientName guaranteed in our saved payload, but fall back to checking if patientName matches
+            const myHistory = treatments.filter(t => t.patientName === patientName);
+
+            historyList.innerHTML = "";
+
+            if (!myHistory.length) {
+                historyList.innerHTML = "<p>No previous treatment records found.</p>";
+            } else {
+                myHistory.forEach(t => {
+                    historyList.innerHTML += `
+                <div class="history-item">
+                    <p><strong>Date:</strong> ${t.date}</p>
+                    <p><strong>Doctor:</strong> ${t.doctorName}</p>
+                    <p><strong>Diagnosis:</strong> ${t.diagnosis}</p>
+                    <p><strong>Prescription:</strong> ${t.prescription}</p>
+                </div>
+            `;
+                });
+            }
+
+            document.getElementById("historyModal").style.display = "block";
+        };
+
+        window.closeModal = function () {
+            document.getElementById("historyModal").style.display = "none";
+        };
+
+        window.onclick = function (event) {
+            if (event.target == document.getElementById("historyModal")) {
+                closeModal();
+            }
+        };
+    </script>
+</body>
+
+</html>

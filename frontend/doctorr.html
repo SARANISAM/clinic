@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Doctor Management - AstraCare</title>
+  <link rel="stylesheet" href="stylereception.css" />
+</head>
+
+<body>
+  <header>
+    <h1>AstraCare Medical Center</h1>
+    <p>Receptionist - Doctor Management</p>
+  </header>
+
+  <main>
+    <a href="dashr.html" class="back-button">← Back to Dashboard</a>
+
+    <h2>Add New Doctor</h2>
+
+    <form id="doctorForm">
+      <input type="text" id="fullName" placeholder="Full Name*" required />
+
+
+
+      <select id="specialization" required>
+        <option value="">Select Specialization*</option>
+        <option>General Physician</option>
+        <option>Cardiologist</option>
+        <option>Dermatologist</option>
+        <option>ENT Specialist</option>
+        <option>Gynecologist</option>
+        <option>Neurologist</option>
+        <option>Orthopedic Surgeon</option>
+        <option>Pediatrician</option>
+        <option>Psychiatrist</option>
+        <option>Urologist</option>
+      </select>
+
+      <input type="text" id="availability" placeholder="Phone Number*" required />
+      <input type="email" id="email" placeholder="Email Address*" required />
+      <input type="password" id="password" placeholder="Password*" required />
+
+      <select id="status" required>
+        <option value="">Status*</option>
+        <option>Active</option>
+        <option>On Leave</option>
+        <option>Retired</option>
+      </select>
+
+      <p id="formMsg" style="display:none; margin-top:8px;"></p>
+
+      <button type="submit">Add Doctor</button>
+    </form>
+
+    <h3>Doctor Records</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Specialization</th>
+          <th>Phone</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+
+      <tbody id="doctorTable">
+        <tr>
+          <td colspan="4" style="text-align:center;">Loading...</td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <script>
+    const API_URL = "https://clinic-tm9b.onrender.com";
+
+    // ADD DOCTOR
+    document.getElementById("doctorForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formMsg = document.getElementById("formMsg");
+      formMsg.style.display = "none";
+
+      const fullName = document.getElementById("fullName") ? document.getElementById("fullName").value.trim() : "";
+      const department = document.getElementById("department") ? document.getElementById("department").value : document.getElementById("specialization").value;
+      const specialization = document.getElementById("specialization") ? document.getElementById("specialization").value : "";
+      const availability = document.getElementById("availability") ? document.getElementById("availability").value.trim() : "";
+      const email = document.getElementById("email") ? document.getElementById("email").value.trim() : "";
+      const password = document.getElementById("password") ? document.getElementById("password").value : "";
+      const status = document.getElementById("status") ? document.getElementById("status").value : "";
+
+      try {
+        // STEP 1: Create user
+        const signupRes = await fetch(`${API_URL}/signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: fullName,
+            email,
+            password
+          })
+        });
+
+        const signupData = await signupRes.json();
+
+        if (!signupRes.ok) {
+          throw new Error(signupData.message || "Signup failed");
+        }
+
+        const createdUserId =
+          signupData.user?.[0]?.user_id || signupData.user_id;
+
+        // STEP 2: Create doctor
+        const doctorRes = await fetch(`${API_URL}/doctors`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: createdUserId,
+            name: fullName,
+            department,
+            specialization,
+            availability,
+            email,
+            password,
+            status
+          })
+        });
+
+        const doctorData = await doctorRes.json();
+
+        if (!doctorRes.ok) {
+          throw new Error(doctorData.message || "Doctor creation failed");
+        }
+
+        // Save name locally since backend doesn't return it
+        const doctorNames = JSON.parse(localStorage.getItem("doctorNames")) || {};
+        doctorNames[createdUserId] = fullName;
+        localStorage.setItem("doctorNames", JSON.stringify(doctorNames));
+
+        formMsg.style.color = "green";
+        formMsg.innerText = "✅ Doctor added successfully!";
+        formMsg.style.display = "block";
+
+        document.getElementById("doctorForm").reset();
+        loadDoctors();
+
+      } catch (error) {
+        formMsg.style.color = "red";
+        formMsg.innerText = "❌ " + error.message;
+        formMsg.style.display = "block";
+      }
+    });
+
+    // LOAD DOCTORS
+    async function loadDoctors() {
+      const table = document.getElementById("doctorTable");
+
+      try {
+        const response = await fetch(`${API_URL}/doctors`);
+        const result = await response.json();
+
+        const doctors = result.data || result;
+        const doctorNames = JSON.parse(localStorage.getItem("doctorNames")) || {};
+
+        console.log("Doctors:", doctors);
+
+        table.innerHTML = "";
+
+        if (!doctors || doctors.length === 0) {
+          table.innerHTML = '<tr><td colspan="6" style="text-align:center;">No doctors found.</td></tr>';
+          return;
+        }
+
+        doctors.forEach(doc => {
+          // Fallback sequence: localStorage > backend doc.name > email prefix > user_id UUID
+          const emailPrefix = doc.email && doc.email.includes('@') ? doc.email.split('@')[0] : "";
+          const docName = doctorNames[doc.user_id] || doc.name || emailPrefix || doc.user_id || "";
+
+          table.innerHTML += `
+            <tr>
+              <td>${docName}</td>
+              <td>${doc.specialization || ""}</td>
+              <td>${doc.availability || ""}</td>
+              <td>${doc.email || ""}</td>
+            </tr>
+          `;
+        });
+
+      } catch (error) {
+        console.error(error);
+        table.innerHTML = '<tr><td colspan="4" style="text-align:center;">Error loading doctors.</td></tr>';
+      }
+    }
+
+    loadDoctors();
+  </script>
+</body>
+
+</html>

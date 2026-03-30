@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Patient Management - AstraCare</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <header>
+    <h1>AstraCare Medical Center</h1>
+  <p>Receptionist - Patient Management</p>
+  </header>
+
+  <main>
+
+    <a href="dashr.html" class="back-button">← Back to Dashboard</a>
+
+  <h2>Register New Patient</h2>
+
+  <form onsubmit="addPatient(event)">
+    <input type="text"   id="name"    placeholder="Full Name*"    required />
+    <input type="number" id="age"     placeholder="Age*"          required />
+
+    <select id="gender" required>
+      <option value="">Select Gender*</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Other</option>
+      </select>
+
+    <input type="text" id="phone"   placeholder="Phone Number*"  required />
+    <button type="submit">Add Patient</button>
+    </form>
+
+    <p id="message"></p>
+
+  <h3>Patient Records</h3>
+
+    <table border="1">
+      <thead>
+        <tr>
+        <th>Name</th>
+        <th>Age</th>
+        <th>Gender</th>
+        <th>Phone</th>
+        <th>Actions</th>
+        </tr>
+      </thead>
+
+    <tbody id="patientTable">
+        <!-- Dynamic data -->
+      </tbody>
+    </table>
+
+  </main>
+
+  <script>
+
+    const API_URL = "https://clinic-tm9b.onrender.com";
+
+
+// ── LOAD PATIENTS ──
+async function loadPatients() {
+  try {
+    const res      = await fetch(`${API_URL}/patients`);
+    const patients = await res.json();
+
+    const table = document.getElementById("patientTable");
+      table.innerHTML = "";
+
+    if (!patients.length) {
+      table.innerHTML = '<tr><td colspan="6" style="text-align:center;">No patients found.</td></tr>';
+        return;
+      }
+
+    patients.forEach(p => {
+      const row = `
+        <tr id="row-${p.patient_id}">
+          <td>${p.name   || ""}</td>
+          <td>${p.age    || ""}</td>
+          <td>${p.gender || ""}</td>
+          <td>${p.phone  || ""}</td>
+          <td>
+            <button onclick="editPatient('${p.patient_id}', '${p.name}', ${p.age}, '${p.gender}', '${p.phone}')">Edit</button>
+            <button onclick="deletePatient('${p.patient_id}')" style="margin-left:6px; color:red;">Delete</button>
+          </td>
+      </tr>
+    `;
+      table.innerHTML += row;
+      });
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("patientTable").innerHTML =
+      '<tr><td colspan="6" style="text-align:center;">Error loading patients.</td></tr>';
+  }
+    }
+
+// ── ADD PATIENT ──
+async function addPatient(event) {
+      event.preventDefault();
+
+  const name    = document.getElementById("name").value;
+  const age     = document.getElementById("age").value;
+  const gender  = document.getElementById("gender").value;
+  const phone   = document.getElementById("phone").value;
+      const message = document.getElementById("message");
+
+      try {
+    const res  = await fetch(`${API_URL}/patients`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, age: parseInt(age), gender, phone })
+        });
+
+    const data = await res.json();
+
+    if (!res.ok) throw new Error("Failed");
+
+    message.style.color   = "green";
+    message.innerText     = "✅ Patient Added!";
+        event.target.reset();
+    loadPatients();
+
+      } catch (err) {
+        message.style.color = "red";
+    message.innerText   = "❌ Error adding patient";
+  }
+}
+
+// ── EDIT PATIENT ──
+function editPatient(id, name, age, gender, phone) {
+  const newName    = prompt("Enter name:",    name);
+  const newAge     = prompt("Enter age:",     age);
+  const newGender  = prompt("Enter gender:",  gender);
+  const newPhone   = prompt("Enter phone:",   phone);
+
+  if (newName && newAge && newGender && newPhone) {
+    updatePatient(id, newName, newAge, newGender, newPhone);
+  }
+}
+
+async function updatePatient(id, name, age, gender, phone) {
+  try {
+    const res = await fetch(`${API_URL}/patients/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, age: parseInt(age), gender, phone })
+    });
+
+    if (!res.ok) throw new Error("Update failed");
+
+    document.getElementById("message").style.color = "green";
+    document.getElementById("message").innerText   = "✅ Patient Updated!";
+    loadPatients();
+
+  } catch (err) {
+    document.getElementById("message").style.color = "red";
+    document.getElementById("message").innerText   = "❌ Error updating patient";
+  }
+}
+
+// ── DELETE PATIENT ──
+async function deletePatient(id) {
+  const confirmed = confirm("Are you sure you want to delete this patient?");
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${API_URL}/patients/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    // Remove row from table immediately
+    const row = document.getElementById("row-" + id);
+    if (row) row.remove();
+
+    document.getElementById("message").style.color = "green";
+    document.getElementById("message").innerText   = "✅ Patient Deleted!";
+
+  } catch (err) {
+    document.getElementById("message").style.color = "red";
+    document.getElementById("message").innerText   = "❌ Error deleting patient";
+  }
+}
+
+// 🚀 INITIAL LOAD
+loadPatients();
+
+  </script>
+
+</body>
+</html>

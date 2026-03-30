@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>AstraCare Clinic | Premium Medical Services</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500&display=swap"
+    rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-center p-6 text-white overflow-x-hidden">
+
+  <!-- Background Glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Header Section (Icons + Logo + Text) -->
+  <div class="fade-in text-center max-w-2xl flex flex-col items-center">
+
+    <!-- Icons Row (Now above logo) -->
+    <div class="flex justify-center gap-8 mb-24">
+      
+
+      <!-- Receptionist Icon Portal -->
+      <div class="group relative">
+        <a href="receptionist_login.html">
+          <button
+            class="w-16 h-16 premium-gradient text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group-hover:scale-110 active:scale-95"
+            title="Reception">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+        </a>
+        <span
+          class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-slate-500 text-[10px] font-medium uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-300">Reception</span>
+      </div>
+
+      <!-- Doctor Icon Portal -->
+      <div class="group relative">
+        <a href="indexpooja.html">
+          <button
+            class="w-16 h-16 gold-accent text-slate-900 rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group-hover:scale-110 active:scale-95"
+            title="Physician">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 21 4.318 12.682a4.5 4.5 0 010-6.364z" />
+          </svg>
+        </button>
+        <span
+          class="absolute -bottom-8 left-1/2 -translate-x-1/2 text-slate-500 text-[10px] font-medium uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-300">Doctor</span>
+      </div>
+    </div>
+
+    <!-- Main Logo -->
+    <div class="relative w-32 h-32 mx-auto mb-8">
+      <!-- Premium Glass Logo Container -->
+      <div class="absolute inset-0 premium-gradient rounded-3xl rotate-6 opacity-20 blur-xl"></div>
+      <div
+        class="relative w-full h-full glass rounded-3xl flex items-center justify-center shadow-2xl overflow-hidden group hover:scale-105 transition-transform duration-500">
+        <!-- Background Accent -->
+        <div class="absolute inset-0 gold-accent opacity-5 group-hover:opacity-10 transition-opacity"></div>
+
+        <!-- Premium SVG Logo -->
+        <svg viewBox="0 0 100 100" class="h-20 w-20 text-white" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 20V80M20 50H80" stroke="currentColor" stroke-width="8" stroke-linecap="round" />
+          <path d="M50 5L58 35L88 42L58 50L50 80L42 50L12 42L42 35L50 5Z" fill="url(#goldGrad)" class="animate-pulse" />
+          <defs>
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#d4af37;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#f1c40f;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <h1 class="text-5xl md:text-6xl font-bold text-white tracking-tight leading-tight">
+      Astra<span class="text-transparent bg-clip-text gold-accent">Care</span> Clinic
+    </h1>
+
+    <p class="text-slate-400 mt-6 text-xl font-light tracking-wide max-w-lg mx-auto leading-relaxed">
+      Where Compassion Meets <span class="font-medium text-white">Advanced Medicine</span>.
+    </p>
+
+    <footer class="mt-24 text-slate-600 text-xs font-light tracking-widest uppercase">
+      &copy; 2026 AstraCare Clinic Group. All Rights Reserved.
+    </footer>
+  </div>
+
+</body>
+
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Add Treatment</title>
+    <link rel="stylesheet" href="stylep.css">
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>Doctor Panel</h2>
+        <a href="doctordashboard.html">Dashboard</a>
+        <a href="doctorappointment.html">Appointments</a>
+        <a href="doctorpatients.html">Patients</a>
+        <a href="addtreatment.html">Add Treatment</a>
+       
+    </div>
+
+    <div class="main">
+        <h1>Add Treatment Record</h1>
+
+        <!-- ── FORM ── -->
+        <div class="card">
+            <form id="treatmentForm">
+
+                <label>Patient</label>
+                <select id="patientId" required>
+                    <option value="">Select Patient*</option>
+                </select>
+
+                <label>Appointment</label>
+                <select id="appointmentId" required>
+                    <option value="">Select Today's Appointment*</option>
+                </select>
+
+                <label>Diagnosis</label>
+                <textarea id="diagnosis" required></textarea>
+
+                <label>Prescription</label>
+                <textarea id="prescription" required></textarea>
+
+                <label>Notes</label>
+                <textarea id="notes"></textarea>
+
+                <label>Follow-up Date</label>
+                <input type="date" id="followup">
+
+                <button type="submit">Save Record</button>
+
+            </form>
+
+            <p id="successMessage" style="margin-top:10px;"></p>
+        </div>
+
+        <!-- ── TREATMENT RECORDS TABLE ── -->
+        <h2 style="margin-top:30px;">Treatment Records</h2>
+
+        <div class="card">
+            <table id="treatmentTable" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Patient</th>
+                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Appointment ID</th>
+                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Diagnosis</th>
+                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Prescription</th>
+                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Notes</th>
+                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Follow-up</th>
+                    </tr>
+                </thead>
+                <tbody id="treatmentTableBody">
+                    <tr>
+                        <td colspan="6" style="padding:16px; text-align:center; color:#888;">
+                            No treatment records yet.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = "https://clinic-tm9b.onrender.com";
+
+        // Store patient names for display in table
+        const patientNames = {};
+
+        document.addEventListener("DOMContentLoaded", async function () {
+
+            const doctor = JSON.parse(localStorage.getItem("doctor"));
+            if (!doctor) {
+                window.location.href = "indexpooja.html";
+                return;
+            }
+            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
+            const docUserId = doctor.user_id || doctor.name;
+            const docDocId = doctorInfo.doctor_id;
+
+            // Fetch patients and appointments
+            let apiPatients = [];
+            try {
+                const res = await fetch(`${API_URL}/patients`);
+                if (res.ok) apiPatients = await res.json();
+            } catch (e) { }
+
+            const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+            const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+            const myPatientIds = Array.from(new Set(myHistoricalApps.map(a => a.patient_id)));
+
+            // LOAD MY PATIENTS INTO DROPDOWN
+            const selectPat = document.getElementById("patientId");
+            myPatientIds.forEach(pid => {
+                const p = apiPatients.find(x => x.patient_id === pid) || { patient_id: pid, name: myHistoricalApps.find(a => a.patient_id === pid).patientName };
+                patientNames[p.patient_id] = p.name;
+                const opt = document.createElement("option");
+                opt.value = p.patient_id;
+                opt.textContent = p.name || p.patient_id;
+                selectPat.appendChild(opt);
+            });
+
+            // LOAD TODAY'S APPOINTMENTS INTO DROPDOWN
+            const today = new Date().toISOString().split("T")[0];
+            let apiApps = [];
+            try {
+                const res = await fetch(`${API_URL}/appointments/${today}`);
+                if (res.ok) apiApps = await res.json();
+            } catch (err) { }
+
+            const allTodayApps = [...apiApps, ...localApps.filter(a => a.appointment_date === today)];
+            const myTodayApps = allTodayApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+
+            // Deduplicate
+            const uniqueAppts = Array.from(new Set(myTodayApps.map(a => JSON.stringify(a)))).map(e => JSON.parse(e));
+
+            const selectAppt = document.getElementById("appointmentId");
+            uniqueAppts.forEach(a => {
+                const opt = document.createElement("option");
+                opt.value = a.appointment_id;
+                const pName = patientNames[a.patient_id] || a.patientName || a.patient_id;
+                opt.textContent = (a.appointment_time || "") + " — " + pName;
+                selectAppt.appendChild(opt);
+            });
+
+            // LOAD EXISTING RECORDS FROM LOCALSTORAGE (persists across sessions)
+            renderTable();
+
+            // SUBMIT TREATMENT
+            document.getElementById("treatmentForm").addEventListener("submit", async function (event) {
+                event.preventDefault();
+
+                const patientId = document.getElementById("patientId").value;
+                const appointment_id = document.getElementById("appointmentId").value;
+                const diagnosis = document.getElementById("diagnosis").value;
+                const prescription = document.getElementById("prescription").value;
+                const notes = document.getElementById("notes").value;
+                const followup = document.getElementById("followup").value;
+                const successMessage = document.getElementById("successMessage");
+
+                successMessage.textContent = "";
+
+                try {
+                    // SAVE TO BACKEND
+                    const response = await fetch(`${API_URL}/treatments`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ appointment_id, diagnosis, prescription })
+                    });
+
+                    await response.json();
+
+                    // SAVE TO LOCALSTORAGE FOR DISPLAY
+                    const record = {
+                        patientId,
+                        patientName: patientNames[patientId] || patientId,
+                        appointment_id,
+                        diagnosis,
+                        prescription,
+                        notes,
+                        followup,
+                        savedAt: new Date().toLocaleString()
+                    };
+
+                    const existing = JSON.parse(localStorage.getItem("treatmentRecords")) || [];
+                    existing.unshift(record); // add to top
+                    localStorage.setItem("treatmentRecords", JSON.stringify(existing));
+
+                    successMessage.style.color = "green";
+                    successMessage.innerText = "✅ Treatment Record Saved Successfully!";
+
+                    document.getElementById("treatmentForm").reset();
+                    renderTable();
+
+                } catch (err) {
+                    successMessage.style.color = "red";
+                    successMessage.innerText = "❌ Error saving treatment record. Please try again.";
+                }
+            });
+
+        });
+
+        // RENDER TABLE FROM LOCALSTORAGE
+        function renderTable() {
+            const tbody = document.getElementById("treatmentTableBody");
+            const records = JSON.parse(localStorage.getItem("treatmentRecords")) || [];
+
+            tbody.innerHTML = "";
+
+            if (!records.length) {
+                tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="padding:16px; text-align:center; color:#888;">
+                    No treatment records yet.
+                </td>
+            </tr>
+        `;
+                return;
+            }
+
+            records.forEach(r => {
+                const row = document.createElement("tr");
+                row.style.borderBottom = "1px solid #1a3a5c";
+                row.innerHTML = `
+            <td style="padding:10px;">${r.patientName || r.patientId || "—"}</td>
+            <td style="padding:10px; font-size:12px; color:#888;">${r.appointment_id || "—"}</td>
+            <td style="padding:10px;">${r.diagnosis || "—"}</td>
+            <td style="padding:10px;">${r.prescription || "—"}</td>
+            <td style="padding:10px;">${r.notes || "—"}</td>
+            <td style="padding:10px;">${r.followup || "—"}</td>
+        `;
+                tbody.appendChild(row);
+            });
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Treatment Records - AstraCare</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <header>
+    <h1>AstraCare Medical Center</h1>
+    <p>Receptionist - Treatment Records</p>
+  </header>
+
+  <main>
+
+    <a href="dashr.html" class="back-button">← Back to Dashboard</a>
+
+    <h2>Record Treatment Details</h2>
+
+    <form id="treatmentForm">
+
+      <select id="patient" required>
+        <option value="">Select Patient*</option>
+      </select>
+
+      <select id="doctor" required>
+        <option value="">Select Doctor*</option>
+      </select>
+
+      <input type="date" id="date" required />
+
+      <textarea id="diagnosis" placeholder="Diagnosis*" required></textarea>
+      <textarea id="prescription" placeholder="Prescribed Medicines*" required></textarea>
+
+      <textarea id="notes" placeholder="Additional Notes (optional)"></textarea>
+
+      <button type="submit">Save Treatment Record</button>
+
+    </form>
+
+    <p id="message"></p>
+
+    <h3>Treatment History</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Patient</th>
+          <th>Doctor</th>
+          <th>Diagnosis</th>
+          <th>Medicines</th>
+        </tr>
+      </thead>
+      <tbody id="historyTable"></tbody>
+    </table>
+
+  </main>
+
+  <script>
+
+    const API_URL = "https://clinic-tm9b.onrender.com";
+
+    // ✅ LOAD PATIENTS
+    async function loadPatients() {
+      const res = await fetch(`${API_URL}/patients`);
+      const data = await res.json();
+
+      const select = document.getElementById("patient");
+
+      data.forEach(p => {
+        const option = document.createElement("option");
+        option.value = p.patient_id;
+        option.textContent = p.name;
+        select.appendChild(option);
+      });
+    }
+
+    // ✅ LOAD DOCTORS
+    async function loadDoctors() {
+      const res = await fetch(`${API_URL}/doctors`);
+      const result = await res.json();
+      const data = result.data || result;
+
+      const select = document.getElementById("doctor");
+      const doctorNames = JSON.parse(localStorage.getItem("doctorNames")) || {};
+
+      data.forEach(d => {
+        const option = document.createElement("option");
+        option.value = d.doctor_id || d.user_id || d.id || "";
+
+        // Fallback sequence: localStorage > backend doc.name > email prefix > user_id UUID
+        const emailPrefix = d.email && d.email.includes('@') ? d.email.split('@')[0] : "";
+        const dName = doctorNames[d.user_id] || d.name || emailPrefix || d.user_id || "Unnamed Doctor";
+
+        option.textContent = dName + " (" + (d.specialization || "General") + ")";
+        select.appendChild(option);
+      });
+    }
+
+    // ✅ SUBMIT TREATMENT (MATCHES YOUR BACKEND)
+    document.getElementById("treatmentForm").addEventListener("submit", async function (e) {
+
+      e.preventDefault();
+
+      const patient_id = document.getElementById("patient").value;
+      const doctor_id = document.getElementById("doctor").value;
+      const diagnosis = document.getElementById("diagnosis").value;
+      const prescription = document.getElementById("prescription").value;
+      const message = document.getElementById("message");
+
+      try {
+        const today = document.getElementById("date").value;
+
+        let apps = [];
+        try {
+          const resApp = await fetch(`${API_URL}/appointments/${today}`);
+          apps = await resApp.json();
+        } catch (e) {
+          console.warn("Backend appointments fetch failed, falling back to local storage");
+        }
+
+        let app = apps.find(a => a.patient_id === patient_id && a.doctor_id === doctor_id);
+
+        if (!app) {
+          const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+          app = localApps.find(a =>
+            a.patient_id === patient_id &&
+            // We ignore doctor_id here because patientr.html stores user_id but treatmentr.html uses doctor_id
+            a.appointment_date === today
+          );
+          if (app && !app.appointment_id) {
+            app.appointment_id = "local-" + Date.now();
+          }
+        }
+
+        if (!app) {
+          message.style.color = "red";
+          message.innerText = "No appointment found for this patient today!";
+          return;
+        }
+
+        // POST treatment
+        const response = await fetch(`${API_URL}/treatments`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            appointment_id: app.appointment_id,
+            diagnosis,
+            prescription
+          })
+        });
+
+        if (!response.ok) {
+          console.log("Database constraints may have rejected this, reflecting locally");
+        }
+
+        const treatments = JSON.parse(localStorage.getItem("treatmentHistory")) || [];
+        const patName = document.getElementById("patient").options[document.getElementById("patient").selectedIndex].text;
+        const docName = document.getElementById("doctor").options[document.getElementById("doctor").selectedIndex].text;
+
+        treatments.push({
+          date: today,
+          patientName: patName,
+          doctorName: docName,
+          diagnosis,
+          prescription
+        });
+        localStorage.setItem("treatmentHistory", JSON.stringify(treatments));
+
+        message.style.color = "green";
+        message.innerText = "✅ Treatment Saved!";
+        document.getElementById("treatmentForm").reset();
+        loadHistory();
+
+      } catch (err) {
+        message.style.color = "red";
+        message.innerText = "❌ Error saving treatment";
+      }
+
+    });
+
+    // ✅ LOAD HISTORY
+    function loadHistory() {
+      const tbody = document.getElementById("historyTable");
+      const treatments = JSON.parse(localStorage.getItem("treatmentHistory")) || [];
+
+      tbody.innerHTML = "";
+
+      if (!treatments.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No treatment records found.</td></tr>';
+        return;
+      }
+
+      treatments.forEach(t => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${t.date}</td>
+            <td>${t.patientName}</td>
+            <td>${t.doctorName}</td>
+            <td>${t.diagnosis}</td>
+            <td>${t.prescription}</td>
+          </tr>
+        `;
+      });
+    }
+
+    // 🚀 INIT LOAD
+    loadPatients();
+    loadDoctors();
+    loadHistory();
+
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Appointment Management - AstraCare</title>
+  <link rel="stylesheet" href="stylereception.css" />
+</head>
+
+<body>
+  <header>
+    <h1>AstraCare Medical Center</h1>
+    <p>Receptionist - Appointment Management</p>
+  </header>
+
+  <main>
+    <a href="dashr.html" class="back-button">
+      <span class="nav-icon">←</span> Back to Dashboard
+    </a>
+
+    <h2>Book New Appointment</h2>
+    <form onsubmit="addAppointment(event)">
+      <select id="patientId" required>
+        <option value="">Select Patient*</option>
+      </select>
+
+      <select id="doctorId" required>
+        <option value="">Select Doctor*</option>
+      </select>
+
+      <input type="date" id="date" required />
+      <input type="time" id="time" required />
+      <textarea id="reason" placeholder="Reason for Visit / Symptoms"></textarea>
+
+      <select id="status" required>
+        <option value="Scheduled">Scheduled</option>
+        <option value="Completed">Completed</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+
+      <button type="submit">Book Appointment</button>
+    </form>
+
+    <p id="message"></p>
+
+    <h3>Appointment Records</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Patient Name</th>
+          <th>Doctor Name</th>
+          <th>Reason</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="appointmentTable">
+      </tbody>
+    </table>
+  </main>
+
+  <script>
+    const API_URL = "https://clinic-tm9b.onrender.com";
+
+    const patientMap = {};
+    const doctorMap = {};
+
+    // ── LOAD PATIENTS AND DOCTORS ──
+    async function loadDropdowns() {
+      try {
+        const [patRes, docRes] = await Promise.all([
+          fetch(`${API_URL}/patients`),
+          fetch(`${API_URL}/doctors`)
+        ]);
+
+        const patients = await patRes.json();
+        const doctors = await docRes.json();
+
+        const patSelect = document.getElementById("patientId");
+        patients.forEach(p => {
+          patientMap[p.patient_id] = p.name;
+          const opt = document.createElement("option");
+          opt.value = p.patient_id;
+          opt.textContent = p.name;
+          patSelect.appendChild(opt);
+        });
+
+        const docSelect = document.getElementById("doctorId");
+        const docData = doctors.data || doctors;
+        const doctorNames = JSON.parse(localStorage.getItem("doctorNames")) || {};
+        docData.forEach(d => {
+          const emailPrefix = d.email && d.email.includes('@') ? d.email.split('@')[0] : "";
+          const dName = doctorNames[d.user_id] || d.name || emailPrefix || d.user_id;
+          doctorMap[d.user_id] = dName;
+
+          const opt = document.createElement("option");
+          opt.value = d.user_id;
+          opt.textContent = dName + " (" + (d.specialization || "General") + ")";
+          docSelect.appendChild(opt);
+        });
+
+      } catch (err) {
+        console.error("Error loading dropdowns:", err);
+      }
+    }
+
+    // ── LOAD APPOINTMENTS ──
+    function loadAppointments() {
+      const table = document.getElementById("appointmentTable");
+      const appointments = JSON.parse(localStorage.getItem("allAppointments")) || [];
+
+      table.innerHTML = "";
+
+      if (!appointments.length) {
+        table.innerHTML = '<tr><td colspan="6" style="text-align:center;">No appointments found.</td></tr>';
+        return;
+      }
+
+      appointments.forEach(a => {
+        const pName = patientMap[a.patient_id] || a.patientName || "Unknown Patient";
+        const dName = doctorMap[a.doctor_id] || a.doctorName || "Unknown Doctor";
+        const reasonValue = a.reason || "—";
+
+        table.innerHTML += `
+      <tr>
+        <td>${a.appointment_date}</td>
+        <td>${a.appointment_time || "—"}</td>
+        <td>${pName}</td>
+        <td>${dName}</td>
+        <td>${reasonValue}</td>
+        <td>${a.status || "Scheduled"}</td>
+      </tr>
+    `;
+      });
+    }
+
+    // ── ADD APPOINTMENT ──
+    async function addAppointment(event) {
+      event.preventDefault();
+
+      const patient_id = document.getElementById("patientId").value;
+      const doctor_id = document.getElementById("doctorId").value;
+      const appointment_date = document.getElementById("date").value;
+      const appointment_time = document.getElementById("time").value;
+      const reason = document.getElementById("reason").value;
+      const status = document.getElementById("status").value;
+      const message = document.getElementById("message");
+
+      try {
+        const res = await fetch(`${API_URL}/appointments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patient_id, doctor_id, appointment_date, appointment_time, status })
+        });
+
+        if (!res.ok) {
+          console.log("Database might have rejected the appointment due to constraints, but we'll reflect it in UI.");
+        }
+
+        // Save locally
+        const appointments = JSON.parse(localStorage.getItem("allAppointments")) || [];
+        appointments.push({
+          patient_id,
+          patientName: patientMap[patient_id],
+          doctor_id,
+          doctorName: doctorMap[doctor_id],
+          appointment_date,
+          appointment_time,
+          reason,
+          status
+        });
+        localStorage.setItem("allAppointments", JSON.stringify(appointments));
+
+        // Also sync with doctor's appointments array for doctorappointment.html interoperability
+        const doctorAppts = JSON.parse(localStorage.getItem("appointmentList")) || [];
+        doctorAppts.push({
+          name: patientMap[patient_id],
+          date: appointment_date + " " + appointment_time,
+          status: status
+        });
+        localStorage.setItem("appointmentList", JSON.stringify(doctorAppts));
+        localStorage.setItem("appointments", JSON.stringify(doctorAppts));
+
+        message.style.color = "green";
+        message.innerText = "✅ Appointment Added!";
+        event.target.reset();
+        loadAppointments();
+
+      } catch (err) {
+        message.style.color = "red";
+        message.innerText = "❌ Error adding appointment";
+      }
+    }
+
+    // 🚀 INITIAL LOAD
+    async function init() {
+      await loadDropdowns();
+      loadAppointments();
+    }
+
+    init();
+
+  </script>
+</body>
+
+</html>

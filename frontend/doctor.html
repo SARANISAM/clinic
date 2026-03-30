@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Doctor Management - AstraCare</title>
+  <link rel="stylesheet" href="stylep.css" />
+</head>
+<body>
+  <header>
+    <h1>AstraCare Medical Center</h1>
+    <p>Receptionist - Doctor Management</p>
+  </header>
+
+  <main>
+    <a href="dashr.html" class="back-button">← Back to Dashboard</a>
+
+    <h2>Add New Doctor</h2>
+
+    <!-- ✅ FORM (ONLY IDs ADDED, STYLE SAME) -->
+    <form id="doctorForm">
+      <input type="text" id="user_id" placeholder="Full Name*" required />
+
+      
+
+      <select id="specialization" required>
+        <option value="">Select Specialization*</option>
+        <option>General Physician</option>
+        <option>Cardiologist</option>
+        <option>Dermatologist</option>
+        <option>ENT Specialist</option>
+        <option>Gynecologist</option>
+        <option>Neurologist</option>
+        <option>Orthopedic Surgeon</option>
+        <option>Pediatrician</option>
+        <option>Psychiatrist</option>
+        <option>Urologist</option>
+      </select>
+
+      <input type="text" id="availability" placeholder="Phone Number*" required />
+      <input type="email" id="email" placeholder="Email Address" />
+      <input type="number" id="password" placeholder="Consultation Fee (₹)*" required />
+
+      <select id="status" required>
+        <option value="">Status*</option>
+        <option>Active</option>
+        <option>On Leave</option>
+        <option>Retired</option>
+      </select>
+
+      <button type="submit">Add Doctor</button>
+    </form>
+
+    <h3>Doctor Records</h3>
+
+    <!-- ✅ TABLE (ONLY tbody ID ADDED) -->
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Department</th>
+          <th>Specialization</th>
+          <th>Phone</th>
+          <th>Fee</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+
+      <tbody id="doctorTable">
+        <!-- Dynamic data will come here -->
+      </tbody>
+    </table>
+  </main>
+
+  <!-- ✅ JAVASCRIPT (NEW, NO STYLE CHANGE) -->
+  <script>
+    const BASE_URL = "https://clinic-tm9b.onrender.com";
+
+    // ADD DOCTOR
+    document.getElementById("doctorForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const doctorData = {
+        user_id: document.getElementById("user_id").value,
+        specialization: document.getElementById("specialization").value,
+        availability: document.getElementById("availability").value,
+        email: document.getElementById("email").value,
+        password: document.getElementById("password").value
+      };
+
+      try {
+        const response = await fetch(`${BASE_URL}/doctors`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(doctorData)
+        });
+
+        await response.json();
+        alert("Doctor added successfully!");
+
+        document.getElementById("doctorForm").reset();
+        loadDoctors();
+
+      } catch (error) {
+        console.error(error);
+        alert("Error adding doctor");
+      }
+    });
+
+    // LOAD DOCTORS
+    async function loadDoctors() {
+      try {
+        const response = await fetch(`${BASE_URL}/doctors`);
+        const doctors = await response.json();
+
+        const table = document.getElementById("doctorTable");
+        table.innerHTML = "";
+
+        doctors.forEach(doc => {
+          const row = `
+            <tr>
+              <td>${doc.name || doc.user_id || ""}</td>
+              <td>-</td>
+              <td>${doc.specialization || ""}</td>
+              <td>${doc.availability || ""}</td>
+              <td>${doc.password || ""}</td>
+              <td>-</td>
+            </tr>
+          `;
+          table.innerHTML += row;
+        });
+
+      } catch (error) {
+        console.error("Error loading doctors:", error);
+      }
+    }
+
+    // AUTO LOAD
+    loadDoctors();
+  </script>
+
+</body>
+</html>
