@@ -12,7 +12,7 @@ app.use(express.json())
 
 /* =========================
    SUPABASE CONNECTION
-========================= */
+   ========================= */
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -236,6 +236,7 @@ app.put("/appointments/cancel/:id", async (req, res) => {
 
   res.json(data)
 })
+/*
 // Mark Appointment as Completed
 app.put("/appointments/complete/:id", async (req, res) => {
 
@@ -253,7 +254,7 @@ app.put("/appointments/complete/:id", async (req, res) => {
     data
   })
 })
-
+*/
 /* =========================
    TREATMENT RECORDS
 ========================= */
@@ -352,11 +353,13 @@ app.post("/generate-bill/:appointment_id", async (req, res) => {
     res.status(500).json(err)
   }
 })
+
 /* =========================
    DISCHARGE MANAGEMENT
 ========================= */
 
 // Generate Discharge Summary
+/*
 app.post("/generate-discharge/:appointment_id", async (req, res) => {
 
   const appointment_id = req.params.appointment_id
@@ -408,6 +411,7 @@ Take medicines properly and follow up if needed.
     res.status(500).json(err)
   }
 })
+  */
 /* =========================
    RECEPTIONIST SIGNUP
 ========================= */
