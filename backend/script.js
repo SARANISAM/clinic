@@ -59,7 +59,131 @@ app.get("/test-db", async (req,res)=>{
    ========================= */
 
 // ROUTE 1: Get AI Draft
+app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
+  const { appointmentId } = req.params;
 
+  try {
+    // ✅ 1. Get appointment
+    const { data: appointment, error: apptError } = await supabase
+      .from("appointments")
+      .select("*")
+      .eq("appointment_id", appointmentId)
+      .single();
+
+    if (apptError || !appointment) {
+      console.error("❌ Appointment error:", apptError);
+      return res.status(404).json({ error: "Visit record not found" });
+    }
+
+    // ✅ 2. Get patient
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("patient_id", appointment.patient_id)
+      .single();
+
+    // ✅ 3. Get treatment
+    const { data: treatments } = await supabase
+      .from("treatments")
+      .select("*")
+      .eq("appointment_id", appointmentId);
+
+    // ✅ 4. Get bill
+    const { data: bills } = await supabase
+      .from("bills")
+      .select("*")
+      .eq("appointment_id", appointmentId);
+
+    // ✅ 5. Setup Gemini
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+
+    const diagnosis = treatments?.[0]?.diagnosis || "General Consultation";
+    const prescription = treatments?.[0]?.prescription || "Follow-up as needed";
+
+    const prompt = `
+      Act as a professional medical officer. Generate a structured discharge summary.Return the response in clean Markdown format using headers(##)and bold text.
+
+      Patient: ${patient?.name || "Unknown"} (${patient?.age || "-"}y/o ${patient?.gender || "-"})
+      Diagnosis: ${diagnosis}
+      Prescription: ${prescription}
+
+      Format:
+      - CLINICAL NARRATIVE
+      - DISCHARGE STATUS
+      - INSTRUCTIONS
+    `;
+
+    const result = await model.generateContent(prompt);
+    const aiSummary = result.response.text();
+
+    // ✅ 6. Send response
+    res.json({
+      dbData: {
+        ...appointment,
+        patients: patient,
+        treatments: treatments,
+        bills: bills
+      },
+      aiSummary
+    });
+
+  } catch (err) {
+    console.error("❌ AI ERROR:", err);
+    res.status(500).json({ error: "Failed to generate AI summary" });
+  }
+});
+
+
+// ROUTE 2: Finalize & Insert into Discharge Table
+app.post("/api/finalize-discharge", async (req, res) => {
+  const { appointment_id, patient_id, final_summary } = req.body;
+
+  try {
+    console.log("🚀 Incoming:", { appointment_id, patient_id });
+
+    // ✅ Validate input
+    if (!appointment_id || !patient_id || !final_summary) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // ✅ Insert into discharge table
+    const { error: insertError } = await supabase
+      .from("discharge")
+      .insert([
+        {
+          discharge_id: uuidv4(),
+          appointment_id,
+          patient_id,
+          generated_summary: final_summary,
+          created_at: new Date().toISOString()
+        }
+      ]);
+
+    if (insertError) {
+      console.error("❌ INSERT ERROR:", insertError);
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    // ✅ Update appointment status
+    const { error: updateError } = await supabase
+      .from("appointments")
+      .update({ status: "Completed" })
+      .eq("appointment_id", appointment_id);
+
+    if (updateError) {
+      console.error("❌ UPDATE ERROR:", updateError);
+    }
+
+    res.json({
+      success: true,
+      message: "✅ Discharge saved successfully"
+    });
+
+  } catch (err) {
+    console.error("❌ FINAL ERROR:", err);
+    res.status(500).json({ error: "Failed to save discharge record." });
+  }
+});
 /* =========================
    TEST SIGNUP (Browser Test)
 ========================= */
