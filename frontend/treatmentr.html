@@ -61,11 +61,11 @@
 
   <script>
 
-    const API_URL = "https://clinic-tm9b.onrender.com";
+    const API = "https://clinic-tm9b.onrender.com";
 
     // ✅ LOAD PATIENTS
     async function loadPatients() {
-      const res = await fetch(`${API_URL}/patients`);
+      const res = await fetch(`${API}/patients`);
       const data = await res.json();
 
       const select = document.getElementById("patient");
@@ -80,7 +80,7 @@
 
     // ✅ LOAD DOCTORS
     async function loadDoctors() {
-      const res = await fetch(`${API_URL}/doctors`);
+      const res = await fetch(`${API}/doctors`);
       const result = await res.json();
       const data = result.data || result;
 
@@ -116,7 +116,7 @@
 
         let apps = [];
         try {
-          const resApp = await fetch(`${API_URL}/appointments/${today}`);
+          const resApp = await fetch(`${API}/appointments/${today}`);
           apps = await resApp.json();
         } catch (e) {
           console.warn("Backend appointments fetch failed, falling back to local storage");
@@ -143,7 +143,7 @@
         }
 
         // POST treatment
-        const response = await fetch(`${API_URL}/treatments`, {
+        const response = await fetch(`${API}/treatments`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -155,8 +155,23 @@
           })
         });
 
+        console.log("Treatment save response status:", response.status);
+        console.log("Treatment save response ok:", response.ok);
+
+        const responseText = await response.text();
+        let responseBody = responseText;
+        try {
+          responseBody = JSON.parse(responseText);
+        } catch (e) {
+          console.log("Treatment save response body is not JSON:", responseText);
+        }
+        console.log("Treatment save response body:", responseBody);
+
         if (!response.ok) {
-          console.log("Database constraints may have rejected this, reflecting locally");
+          const errorMessage = responseBody && responseBody.error ? responseBody.error : responseBody && responseBody.message ? responseBody.message : responseText;
+          message.style.color = "red";
+          message.innerText = `❌ Failed to save treatment: ${response.status} ${errorMessage}`;
+          return;
         }
 
         const treatments = JSON.parse(localStorage.getItem("treatmentHistory")) || [];

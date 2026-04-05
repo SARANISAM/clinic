@@ -74,7 +74,7 @@
   </main>
 
   <script>
-    const API_URL = "https://clinic-tm9b.onrender.com";
+    const API = "https://clinic-tm9b.onrender.com";
 
     // ADD DOCTOR
     document.getElementById("doctorForm").addEventListener("submit", async (e) => {
@@ -93,7 +93,7 @@
 
       try {
         // STEP 1: Create user
-        const signupRes = await fetch(`${API_URL}/signup`, {
+        const signupRes = await fetch(`${API}/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -113,7 +113,7 @@
           signupData.user?.[0]?.user_id || signupData.user_id;
 
         // STEP 2: Create doctor
-        const doctorRes = await fetch(`${API_URL}/doctors`, {
+        const doctorRes = await fetch(`${API}/doctors`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -158,7 +158,7 @@
       const table = document.getElementById("doctorTable");
 
       try {
-        const response = await fetch(`${API_URL}/doctors`);
+        const response = await fetch(`${API}/doctors`);
         const result = await response.json();
 
         const doctors = result.data || result;

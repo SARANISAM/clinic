@@ -73,7 +73,7 @@
 
   <!-- ✅ JAVASCRIPT (NEW, NO STYLE CHANGE) -->
   <script>
-    const BASE_URL = "https://clinic-tm9b.onrender.com";
+    const API = "https://clinic-tm9b.onrender.com";
 
     // ADD DOCTOR
     document.getElementById("doctorForm").addEventListener("submit", async (e) => {
@@ -88,7 +88,7 @@
       };
 
       try {
-        const response = await fetch(`${BASE_URL}/doctors`, {
+        const response = await fetch(`${API}/doctors`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -111,7 +111,7 @@
     // LOAD DOCTORS
     async function loadDoctors() {
       try {
-        const response = await fetch(`${BASE_URL}/doctors`);
+        const response = await fetch(`${API}/doctors`);
         const doctors = await response.json();
 
         const table = document.getElementById("doctorTable");

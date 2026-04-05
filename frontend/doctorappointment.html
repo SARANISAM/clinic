@@ -4,6 +4,17 @@
 <head>
     <title>Appointments</title>
     <link rel="stylesheet" href="stylep.css">
+    <style>
+        .btn-discharge {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+    </style>
 </head>
 
 <body>
@@ -18,18 +29,24 @@
     </div>
 
     <div class="main">
-        <h1>Appointments</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Appointments</h1>
+            <div id="syncStatus" style="font-size: 14px; color: #4db8ff;"></div>
+            <button onclick="refreshAppointments()"
+                style="background: #1e90ff; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">🔄
+                Refresh</button>
+        </div>
 
         <!-- Appointment List -->
         <div id="appointmentContainer"></div>
     </div>
 
-    <script>
-        const API_URL = "https://clinic-tm9b.onrender.com";
+   <script>
+        const API = "https://clinic-tm9b.onrender.com";
 
         document.addEventListener("DOMContentLoaded", async function () {
-
             const container = document.getElementById("appointmentContainer");
+            const statusDiv = document.getElementById("syncStatus");
             const doctor = JSON.parse(localStorage.getItem("doctor"));
 
             if (!doctor) {
@@ -37,66 +54,176 @@
                 return;
             }
 
-            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
+            console.log("Doctor data from localStorage:", doctor);
+
+            // Robust doctor ID extraction (matching dashboard logic)
+            const doctorInfo = Array.isArray(doctor.doctors)
+                ? doctor.doctors[0]
+                : (doctor.doctors || {});
+
             const docUserId = doctor.user_id || doctor.name;
             const docDocId = doctorInfo.doctor_id;
+            
+            // Create a set of IDs to check against
+            const doctorIds = new Set([docUserId, docDocId].filter(Boolean));
 
-            // Load all appointments from localStorage
-            let allAppointments = JSON.parse(localStorage.getItem("allAppointments")) || [];
-
-            // Fetch all appointments for this doctor from backend
-            try {
-                const res = await fetch(`${API_URL}/appointments/doctor/${docDocId || docUserId}`);
-                if (res.ok) {
-                    const apiApps = await res.json();
-
-                    // Filter out local appointments that are already in the API results (by ID)
-                    // and merge the rest. This ensures we have the latest server data.
-                    apiApps.forEach(apiApp => {
-                        const index = allAppointments.findIndex(a => a.appointment_id === apiApp.appointment_id);
-                        if (index !== -1) {
-                            allAppointments[index] = apiApp; // Update with server version
-                        } else {
-                            allAppointments.push(apiApp); // Add new from server
-                        }
-                    });
-
-                    // Also filter to make sure allAppointments only contains this doctor's appointments
-                    // but we'll do that in the final filtering step.
-                }
-            } catch (e) { console.error("Failed to fetch appointments from backend:", e); }
-
-            // Filter appointments for this specific doctor
-            let myAppointments = allAppointments.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
-
-            window.displayAppointments = function () {
-                container.innerHTML = "";
-
-                if (!myAppointments.length) {
-                    container.innerHTML = "<p>No appointments found.</p>";
-                    return;
-                }
-
-                myAppointments.forEach((app) => {
-                    const card = document.createElement("div");
-                    card.className = "card";
-
-                    const currentStatus = app.status || "Scheduled";
-                    card.innerHTML = `
-                <p><strong>Patient:</strong> ${app.patientName || app.patient_id || "Unknown"}</p>
-                <p><strong>Date/Time:</strong> ${app.appointment_date} ${app.appointment_time || ""}</p>
-                <p><strong>Status:</strong> <span class="status-text">${currentStatus}</span></p>
-            `;
-
-                    container.appendChild(card);
-                });
+            if (doctorIds.size === 0) {
+                console.error("No doctor identifiers found. Available data:", doctor);
+                container.innerHTML = "<div class='card'><p style='color:red;'>Error: Doctor record not found. Please contact administrator.</p></div>";
+                return;
             }
 
-            displayAppointments();
+            statusDiv.innerText = "⏳ Loading appointments...";
 
+            try {
+                // Fetch appointments for today and recent days, then filter by doctor
+                console.log("Fetching appointments for doctor identifiers:", Array.from(doctorIds));
+                const appointments = await fetchDoctorAppointments(doctorIds);
+                displayAppointments(appointments, Array.from(doctorIds).join(', '));
+
+            } catch (error) {
+                console.error("Error fetching appointments:", error);
+                container.innerHTML = "<div class='card'><p style='color:red;'>Error loading appointments. Please try again later.</p></div>";
+                statusDiv.innerText = "❌ Failed to load appointments";
+            }
+
+            async function fetchDoctorAppointments(ids) {
+                const appointments = [];
+                const today = new Date();
+
+                // First, fetch all patients to create a lookup map
+                let patientsMap = {};
+                try {
+                    const patientsResponse = await fetch(`${API}/patients`);
+                    if (patientsResponse.ok) {
+                        const patients = await patientsResponse.json();
+                        patientsMap = patients.reduce((map, patient) => {
+                            map[patient.patient_id] = patient.name || patient.patient_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Unknown Patient';
+                            return map;
+                        }, {});
+                        console.log(`Loaded ${Object.keys(patientsMap).length} patients for name resolution`);
+                    } else {
+                        console.warn("Failed to fetch patients data for name resolution");
+                    }
+                } catch (e) {
+                    console.warn("Error fetching patients data:", e);
+                }
+
+                // Fetch appointments for the last 30 days AND next 7 days
+                for (let i = 0; i < 30; i++) {
+                    const date = new Date(today);
+                    date.setDate(today.getDate() - i);
+                    const dateStr = date.toISOString().split('T')[0];
+
+                    try {
+                        const response = await fetch(`${API}/appointments/${dateStr}`);
+                        if (response.ok) {
+                            const dayAppointments = await response.json();
+                            const doctorAppointments = dayAppointments.filter(app => {
+                                const matches = ids.has(app.doctor_id);
+                                if (matches) {
+                                    app.patientName = patientsMap[app.patient_id] || 'Unknown Patient';
+                                }
+                                return matches;
+                            });
+                            appointments.push(...doctorAppointments);
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to fetch appointments for ${dateStr}:`, e);
+                    }
+                }
+
+                // Future dates
+                for (let i = 1; i <= 7; i++) {
+                    const date = new Date(today);
+                    date.setDate(today.getDate() + i);
+                    const dateStr = date.toISOString().split('T')[0];
+
+                    try {
+                        const response = await fetch(`${API}/appointments/${dateStr}`);
+                        if (response.ok) {
+                            const dayAppointments = await response.json();
+                            const doctorAppointments = dayAppointments.filter(app => {
+                                const matches = ids.has(app.doctor_id);
+                                if (matches) {
+                                    app.patientName = patientsMap[app.patient_id] || 'Unknown Patient';
+                                }
+                                return matches;
+                            });
+                            appointments.push(...doctorAppointments);
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to fetch future appointments for ${dateStr}:`, e);
+                    }
+                }
+
+                return appointments;
+            }
         });
-    </script>
 
+        function displayAppointments(appointments, doctorIdLabel) {
+            const container = document.getElementById("appointmentContainer");
+            const statusDiv = document.getElementById("syncStatus");
+
+            container.innerHTML = "";
+            statusDiv.innerText = "";
+
+            if (!appointments || appointments.length === 0) {
+                container.innerHTML = `
+                    <div class='card' style='text-align: center; padding: 40px;'>
+                        <h3>No Appointments Found</h3>
+                        <p>Doctor ID: ${doctorIdLabel}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort by date (most recent first)
+            appointments.sort((a, b) => {
+                const dateA = new Date(a.appointment_date + " " + (a.appointment_time || "00:00"));
+                const dateB = new Date(b.appointment_date + " " + (b.appointment_time || "00:00"));
+                return dateB - dateA;
+            });
+
+            appointments.forEach((app) => {
+                const card = document.createElement("div");
+                card.className = "card";
+
+                const currentStatus = app.status || "Booked";
+                const appId = app.appointment_id || app.id;
+                const appointmentDate = new Date(app.appointment_date).toLocaleDateString();
+                const isPastOrToday = new Date(app.appointment_date) <= new Date();
+
+                card.innerHTML = `
+                    <p><strong>Patient:</strong> ${app.patientName}</p>
+                    <p><strong>Date:</strong> ${appointmentDate}</p>
+                    <p><strong>Time:</strong> ${app.appointment_time || "Not specified"}</p>
+                    <p><strong>Status:</strong> <span class="status-text">${currentStatus}</span></p>
+                    <div style="margin-top: 10px;">
+                        ${(appId && isPastOrToday) ?
+                            `<button class="btn-discharge" onclick="generateDischarge('${appId}', '${currentStatus}')">Generate Summary</button>` :
+                            ""
+                        }
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            statusDiv.innerText = `✅ Loaded ${appointments.length} appointment(s)`;
+        }
+
+        async function generateDischarge(id, status) {
+            if (!id || id === "undefined") {
+                alert("Error: Appointment ID is missing.");
+                return;
+            }
+            window.location.href = `generatedischarge.html?id=${id}`;
+        }
+
+        async function refreshAppointments() {
+            location.reload();
+        }
+    </script>
 </body>
 
 </html>

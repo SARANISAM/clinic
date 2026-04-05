@@ -65,7 +65,7 @@
 
 <script>
 
-const API_URL = "https://clinic-tm9b.onrender.com";
+const API = "https://clinic-tm9b.onrender.com";
 
 // ✅ CALCULATE TOTAL
 function calculateTotal() {
@@ -80,7 +80,7 @@ function calculateTotal() {
 
 // ✅ LOAD PATIENTS
 async function loadPatients() {
-  const res = await fetch(`${API_URL}/patients`);
+  const res = await fetch(`${API}/patients`);
   const data = await res.json();
 
   const select = document.getElementById("patient");
@@ -96,7 +96,7 @@ async function loadPatients() {
 // ✅ LOAD BILL HISTORY
 async function loadBills(patient_id, patientName, status) {
 
-  const res = await fetch(`${API_URL}/bills/${patient_id}`);
+  const res = await fetch(`${API}/bills/${patient_id}`);
   const bills = await res.json();
 
   const table = document.getElementById("billingTable");
@@ -128,7 +128,7 @@ document.getElementById("billingForm").addEventListener("submit", async function
 
   try {
 
-    await fetch(`${API_URL}/bills`, {
+    await fetch(`${API}/bills`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

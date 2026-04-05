@@ -59,13 +59,13 @@
 
   <script>
 
-    const API_URL = "https://clinic-tm9b.onrender.com";
+    const API = "https://clinic-tm9b.onrender.com";
 
 
 // ── LOAD PATIENTS ──
 async function loadPatients() {
   try {
-    const res      = await fetch(`${API_URL}/patients`);
+    const res      = await fetch(`${API}/patients`);
     const patients = await res.json();
 
     const table = document.getElementById("patientTable");
@@ -110,7 +110,7 @@ async function addPatient(event) {
       const message = document.getElementById("message");
 
       try {
-    const res  = await fetch(`${API_URL}/patients`, {
+    const res  = await fetch(`${API}/patients`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, age: parseInt(age), gender, phone })
@@ -145,7 +145,7 @@ function editPatient(id, name, age, gender, phone) {
 
 async function updatePatient(id, name, age, gender, phone) {
   try {
-    const res = await fetch(`${API_URL}/patients/${id}`, {
+    const res = await fetch(`${API}/patients/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, age: parseInt(age), gender, phone })
@@ -169,7 +169,7 @@ async function deletePatient(id) {
   if (!confirmed) return;
 
   try {
-    const res = await fetch(`${API_URL}/patients/${id}`, {
+    const res = await fetch(`${API}/patients/${id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" }
     });

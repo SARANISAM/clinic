@@ -90,96 +90,156 @@
     </div>
 
     <script>
-        const API_URL = "https://clinic-tm9b.onrender.com";
+       
+const API = "https://clinic-tm9b.onrender.com";
 
-        document.addEventListener("DOMContentLoaded", async function () {
-            const container = document.getElementById("patientContainer");
-            const doctor = JSON.parse(localStorage.getItem("doctor"));
+document.addEventListener("DOMContentLoaded", async function () {
 
-            if (!doctor) {
-                window.location.href = "indexpooja.html";
-                return;
-            }
+    const container = document.getElementById("patientContainer");
+    const doctor = JSON.parse(localStorage.getItem("doctor"));
 
-            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
-            const docUserId = doctor.user_id || doctor.name;
-            const docDocId = doctorInfo.doctor_id;
+    if (!doctor) {
+        window.location.href = "indexpooja.html";
+        return;
+    }
 
-            let apiPatients = [];
+    // Doctor IDs
+    const doctorInfo = Array.isArray(doctor.doctors)
+        ? doctor.doctors[0]
+        : (doctor.doctors || {});
+
+    const docUserId = doctor.user_id || doctor.name;
+    const docDocId = doctorInfo.doctor_id;
+
+    const doctorIds = new Set([docUserId, docDocId].filter(Boolean));
+
+    try {
+        const today = new Date();
+        let allAppointments = [];
+
+        // ✅ 1. Fetch last 30 days appointments (same logic as dashboard)
+        for (let i = 0; i < 30; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const dateStr = d.toISOString().split("T")[0];
+
             try {
-                const res = await fetch(`${API_URL}/patients`);
-                if (res.ok) apiPatients = await res.json();
-            } catch (e) { }
+                const res = await fetch(`${API}/appointments/${dateStr}`);
+                if (res.ok) {
+                    const data = await res.json();
 
-            const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+                    const myApps = data.filter(a =>
+                        doctorIds.has(a.doctor_id)
+                    );
 
-            // Appointments assigned to me
-            const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+                    allAppointments.push(...myApps);
+                }
+            } catch (e) {}
+        }
 
-            // Unique patient IDs assigned to me
-            const myPatientIds = Array.from(new Set(myHistoricalApps.map(a => a.patient_id)));
+        // ✅ 2. Get unique patient IDs
+        const patientIds = [...new Set(allAppointments.map(a => a.patient_id))];
 
-            // Map those IDs to actual patient objects
-            const myPatients = myPatientIds.map(pid => {
-                return apiPatients.find(p => p.patient_id === pid) || { patient_id: pid, name: myHistoricalApps.find(a => a.patient_id === pid).patientName };
-            });
+        if (!patientIds.length) {
+            container.innerHTML = "<div class='card'><p>No patients assigned yet.</p></div>";
+            return;
+        }
 
-            container.innerHTML = "";
-            if (!myPatients.length) {
-                container.innerHTML = "<div class='card'><p>No patients assigned yet.</p></div>";
-                return;
-            }
+        // ✅ 3. Fetch all patients
+        const res = await fetch(`${API}/patients`);
+        let allPatients = [];
 
-            myPatients.forEach(p => {
-                const card = document.createElement("div");
-                card.className = "card";
-                card.innerHTML = `
-            <p><strong>Name:</strong> ${p.name || "Unknown"}</p>
-            <p><strong>Age:</strong> ${p.age || "—"}</p>
-            <p><strong>Gender:</strong> ${p.gender || "—"}</p>
-            <button onclick="viewHistory('${p.patient_id}', '${p.name}')">View History</button>
-        `;
-                container.appendChild(card);
-            });
+        if (res.ok) {
+            allPatients = await res.json();
+        }
+
+        // ✅ 4. Match patients
+        const myPatients = patientIds.map(pid => {
+            return allPatients.find(p => p.patient_id === pid) || {
+                patient_id: pid,
+                name: "Unknown Patient"
+            };
         });
 
-        window.viewHistory = function (patientId, patientName) {
-            document.getElementById("modalPatientName").innerText = patientName + " - Treatment History";
-            const historyList = document.getElementById("historyList");
+        // ✅ 5. Render UI
+        container.innerHTML = "";
 
-            const treatments = JSON.parse(localStorage.getItem("treatmentHistory")) || [];
-            // We only have patientName guaranteed in our saved payload, but fall back to checking if patientName matches
-            const myHistory = treatments.filter(t => t.patientName === patientName);
+        myPatients.forEach(p => {
+            const card = document.createElement("div");
+            card.className = "card";
 
-            historyList.innerHTML = "";
-
-            if (!myHistory.length) {
-                historyList.innerHTML = "<p>No previous treatment records found.</p>";
-            } else {
-                myHistory.forEach(t => {
-                    historyList.innerHTML += `
-                <div class="history-item">
-                    <p><strong>Date:</strong> ${t.date}</p>
-                    <p><strong>Doctor:</strong> ${t.doctorName}</p>
-                    <p><strong>Diagnosis:</strong> ${t.diagnosis}</p>
-                    <p><strong>Prescription:</strong> ${t.prescription}</p>
-                </div>
+            card.innerHTML = `
+                <p><strong>Name:</strong> ${p.name || "Unknown"}</p>
+                <p><strong>Age:</strong> ${p.age || "—"}</p>
+                <p><strong>Gender:</strong> ${p.gender || "—"}</p>
+                <button onclick="viewHistory('${p.patient_id}', '${p.name}')">
+                    View History
+                </button>
             `;
-                });
-            }
 
-            document.getElementById("historyModal").style.display = "block";
-        };
+            container.appendChild(card);
+        });
 
-        window.closeModal = function () {
-            document.getElementById("historyModal").style.display = "none";
-        };
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = "<div class='card'><p style='color:red;'>Error loading patients</p></div>";
+    }
+});
 
-        window.onclick = function (event) {
-            if (event.target == document.getElementById("historyModal")) {
-                closeModal();
-            }
-        };
+
+// ✅ OPTIONAL: KEEP YOUR EXISTING HISTORY FUNCTION (works with localStorage)
+// ✅ UPDATED: FETCH HISTORY FROM LOCAL STORAGE
+// ✅ UPDATED: FETCH HISTORY FROM LOCAL STORAGE (Matching Add Treatment structure)
+window.viewHistory = function (patientId, patientName) {
+    const modal = document.getElementById("historyModal");
+    const historyList = document.getElementById("historyList");
+    
+    modal.style.display = "block";
+    historyList.innerHTML = "<p>Searching...</p>";
+
+    // 🔴 CHANGED: Changed 'treatmentRecords' to 'treatmentHistory'
+    const rawData = localStorage.getItem("treatmentHistory"); 
+    
+    if (!rawData) {
+        historyList.innerHTML = "<p>No history found in 'treatmentHistory' key.</p>";
+        return;
+    }
+
+    const localData = JSON.parse(rawData);
+
+    // 🟢 Filter: Note that in your snippet, the key inside the object 
+    // might also be different (e.g., patientName vs patientId).
+    // Let's check both just in case.
+    const myHistory = localData.filter(r => 
+        (r.patientId && String(r.patientId) === String(patientId)) || 
+        (r.patientName && r.patientName.toLowerCase() === patientName.toLowerCase())
+    );
+
+    historyList.innerHTML = ""; 
+
+    if (myHistory.length === 0) {
+        historyList.innerHTML = "<p>No matching records for this patient.</p>";
+    } else {
+        myHistory.forEach(r => {
+            historyList.innerHTML += `
+                <div style="background:#0d2135; padding:10px; margin-bottom:10px; border-radius:5px; border-left: 3px solid #4db8ff;">
+                    <small>${r.date || "No Date"}</small>
+                    <p><strong>Diagnosis:</strong> ${r.diagnosis || "N/A"}</p>
+                    <p><strong>Prescription:</strong> ${r.prescription || "N/A"}</p>
+                </div>`;
+        });
+    }
+};
+window.closeModal = function () {
+    document.getElementById("historyModal").style.display = "none";
+};
+
+window.onclick = function (event) {
+    if (event.target == document.getElementById("historyModal")) {
+        closeModal();
+    }
+};
+
     </script>
 </body>
 

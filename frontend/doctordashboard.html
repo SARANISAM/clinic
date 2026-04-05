@@ -37,80 +37,89 @@
     </div>
 
     <script>
-        const API_URL = "https://clinic-tm9b.onrender.com";
+        const API = "https://clinic-tm9b.onrender.com";
 
-        document.addEventListener("DOMContentLoaded", async function () {
+      
 
-            // ✅ FIXED: check "doctor" key — same key saved in indexpooja.html
-            const doctor = JSON.parse(localStorage.getItem("doctor"));
+document.addEventListener("DOMContentLoaded", async function () {
 
-            if (!doctor) {
-                window.location.href = "indexpooja.html";
-                return;
-            }
+    const doctor = JSON.parse(localStorage.getItem("doctor"));
 
-            // SHOW DOCTOR NAME from login response
-            // data.doctor = { user_id, name, email, doctors: [{ doctor_id, specialization, availability }] }
-            const name = doctor.name || doctor.user_id || "Doctor";
-            document.getElementById("welcomeMsg").textContent = "Welcome, Dr. " + name + " 👨‍⚕️";
+    if (!doctor) {
+        window.location.href = "indexpooja.html";
+        return;
+    }
 
-            // DOCTOR IDs for filtering
-            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
-            const docUserId = doctor.user_id || doctor.name;
-            const docDocId = doctorInfo.doctor_id;
+    // Doctor name
+    const name = doctor.name || doctor.user_id || "Doctor";
+    document.getElementById("welcomeMsg").textContent =
+        "Welcome, Dr. " + name + " 👨‍⚕️";
 
-            // LOAD TODAY'S APPOINTMENT COUNT
-            const today = new Date().toISOString().split("T")[0];
-            try {
-                const apptRes = await fetch(`${API_URL}/appointments/${today}`);
-                let apiApps = [];
-                try { apiApps = await apptRes.json(); } catch (e) { }
+    // Doctor IDs
+    const doctorInfo = Array.isArray(doctor.doctors)
+        ? doctor.doctors[0]
+        : (doctor.doctors || {});
 
-                // Include localStorage appointments and deduplicate / sync
-                const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
-                const allTodayApps = [...apiApps, ...localApps.filter(a => a.appointment_date === today)];
+    const docUserId = doctor.user_id || doctor.name;
+    const docDocId = doctorInfo.doctor_id;
 
-                // Filter those belonging to the logged in doctor
-                const myTodayApps = allTodayApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
+    const doctorIds = new Set([docUserId, docDocId].filter(Boolean));
 
-                // Remove duplicates if any
-                const uniqueAppts = Array.from(new Set(myTodayApps.map(a => JSON.stringify(a)))).map(e => JSON.parse(e));
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
 
-                const count = uniqueAppts.length;
-                document.getElementById("appointmentCount").textContent =
-                    count + " Appointment" + (count !== 1 ? "s" : "") + " Scheduled";
-            } catch (err) {
-                document.getElementById("appointmentCount").textContent = "Unable to load";
-            }
+    let allAppointments = [];
 
-            // LOAD TOTAL PATIENTS (Unique patients from historical and active appointments)
-            try {
-                const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
+    try {
+        // ✅ 1. FETCH TODAY'S APPOINTMENTS (for count)
+        const todayRes = await fetch(`${API}/appointments/${todayStr}`);
+        let todayApps = [];
 
-                // Filter those belonging to the logged in doctor
-                const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
-
-                // Extract unique patient IDs
-                const myPatientIds = new Set(myHistoricalApps.map(a => a.patient_id));
-                const count = myPatientIds.size;
-
-                if (count === 0) {
-                    // Fallback to 0 if no local history, or we could just show 0
-                    document.getElementById("patientCount").textContent = "0 Patients";
-                } else {
-                    document.getElementById("patientCount").textContent =
-                        count + " Patient" + (count !== 1 ? "s" : "");
-                }
-            } catch (err) {
-                document.getElementById("patientCount").textContent = "Unable to load";
-            }
-
-        });
-
-        function logout() {
-            localStorage.removeItem("doctor");
-            window.location.href = "indexpooja.html";
+        if (todayRes.ok) {
+            const data = await todayRes.json();
+            todayApps = data.filter(a => doctorIds.has(a.doctor_id));
         }
+
+        document.getElementById("appointmentCount").textContent =
+            todayApps.length + " Appointment" + (todayApps.length !== 1 ? "s" : "") + " Scheduled";
+
+        // ✅ 2. FETCH LAST 30 DAYS APPOINTMENTS (for patient count)
+        for (let i = 0; i < 30; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const dateStr = d.toISOString().split("T")[0];
+
+            try {
+                const res = await fetch(`${API}/appointments/${dateStr}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const myApps = data.filter(a => doctorIds.has(a.doctor_id));
+                    allAppointments.push(...myApps);
+                }
+            } catch (e) {}
+        }
+
+        // ✅ 3. UNIQUE PATIENT COUNT
+        const uniquePatients = new Set(
+            allAppointments.map(a => a.patient_id)
+        );
+
+        document.getElementById("patientCount").textContent =
+            uniquePatients.size + " Patient" + (uniquePatients.size !== 1 ? "s" : "");
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById("appointmentCount").textContent = "Unable to load";
+        document.getElementById("patientCount").textContent = "Unable to load";
+    }
+
+});
+
+function logout() {
+    localStorage.removeItem("doctor");
+    window.location.href = "indexpooja.html";
+}
+
     </script>
 
 </body>

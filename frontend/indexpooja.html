@@ -39,7 +39,7 @@
 
     <script>
 
-        const API_URL = "https://clinic-tm9b.onrender.com";
+        const API = "https://clinic-tm9b.onrender.com";
 
         document.getElementById("loginForm").addEventListener("submit", async function(e) {
 
@@ -51,7 +51,7 @@
 
             try {
 
-                const response = await fetch(`${API_URL}/doctor-login`, {
+                const response = await fetch(`${API}/doctor-login`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"

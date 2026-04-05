@@ -65,7 +65,7 @@ Already have an account?
 
 <script>
 
-const API_URL = "https://clinic-tm9b.onrender.com";
+const API = "https://clinic-tm9b.onrender.com";
 
 document.getElementById("signupForm").addEventListener("submit", async function(e) {
 
@@ -86,7 +86,7 @@ document.getElementById("signupForm").addEventListener("submit", async function(
 
   try {
 
-    const response = await fetch(`${API_URL}/signup`, {
+    const response = await fetch(`${API}/signup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

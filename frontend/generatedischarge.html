@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Discharge Summary | Astra Care Clinic</title>
+    <link rel="stylesheet" href="stylep.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+</head>
+
+<body>
+
+    <div class="discharge-container">
+        <div class="hospital-header">
+            <h1>ASTRA CARE CLINIC</h1>
+            <p>Official Patient Discharge Record</p>
+        </div>
+
+        <div class="patient-details">
+            <p><strong>Appointment ID:</strong> <span id="displayAppId" style="color: #4db8ff;">--</span></p>
+            <p><strong>Patient Name:</strong> <span id="pName">Loading...</span></p>
+            <p><strong>Diagnosis:</strong> <span id="pDiag">--</span></p>
+        </div>
+
+        <button class="ai-btn" id="draftBtn" onclick="getAIDraft()">✨ Draft with Gemini AI</button>
+
+        <textarea id="summaryArea" placeholder="AI will write the clinical summary here..."></textarea>
+
+        <div style="margin-top: 20px;">
+            <button class="finalize-btn" onclick="saveDischarge()">Finalize & Save</button>
+            <button class="pdf-btn" id="downloadPdf" style="display:none;" onclick="downloadPDF()">Download PDF</button>
+        </div>
+
+        <footer style="margin-top: 40px; font-size: 0.8rem; color: #999; text-align: center;">
+            Digitally Verified Medical Record - Generated via Astra Care Clinic AI Systems
+        </footer>
+    </div>
+    <script>
+        const API_BASE_URL = "https://clinic-tm9b.onrender.com";
+        const urlParams = new URLSearchParams(window.location.search);
+        const appointmentId = urlParams.get('id');
+
+        // Global variables to hold IDs needed for the POST request
+        let patientId = "";
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (appointmentId) {
+                document.getElementById('displayAppId').innerText = appointmentId;
+                // Start the loading process immediately
+                loadDischargeData();
+            } else {
+                alert("Error: No Appointment ID found in URL.");
+            }
+        });
+
+        /**
+         * PRIMARY FUNCTION: 
+         * 1. Fetches DB info (Name/Diagnosis)
+         * 2. Populates the UI
+         * 3. Triggers the AI Summary
+         */
+        async function loadDischargeData() {
+            const pNameElem = document.getElementById('pName');
+            const pDiagElem = document.getElementById('pDiag');
+            const summaryArea = document.getElementById('summaryArea');
+            const btn = document.getElementById('draftBtn');
+
+            btn.innerText = "✨ Fetching Patient Data...";
+            btn.disabled = true;
+
+            try {
+                // Calling your GET /api/prepare-discharge/:id route
+                const response = await fetch(`${API_BASE_URL}/api/prepare-discharge/${appointmentId}`);
+
+                if (!response.ok) throw new Error("Server reached but returned an error.");
+
+                const data = await response.json();
+
+                // 1. Load Patient Name (based on your backend dbData structure)
+                pNameElem.innerText = data.dbData.patients?.name || "Unknown Patient";
+
+                // 2. Load Diagnosis (from your backend logic: treatments?.[0]?.diagnosis)
+                const treatments = data.dbData.treatments;
+                pDiagElem.innerText = (treatments && treatments.length > 0)
+                    ? treatments[0].diagnosis
+                    : "General Consultation";
+
+                // 3. Capture IDs for the Save function later
+                patientId = data.dbData.patient_id;
+
+                // 4. Load the AI Summary Draft
+                summaryArea.value = data.aiSummary;
+
+                btn.innerText = "✨ Regenerate AI Draft";
+                btn.disabled = false;
+
+            } catch (err) {
+                console.error("Critical Load Error:", err);
+                pNameElem.innerText = "Error Loading Name";
+                pDiagElem.innerText = "Error Loading Diagnosis";
+                btn.innerText = "✨ Retry Loading";
+                btn.disabled = false;
+            }
+        }
+
+        /**
+         * SAVE FUNCTION:
+         * Sends the final text back to your ROUTE 2: /api/finalize-discharge
+         */
+        async function saveDischarge() {
+            const summary = document.getElementById('summaryArea').value;
+
+            if (!summary.trim()) return alert("Summary cannot be empty.");
+            if (!patientId) return alert("Patient ID missing. Please reload the page.");
+
+            const payload = {
+                appointment_id: appointmentId,
+                patient_id: patientId,
+                final_summary: summary
+            };
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/finalize-discharge`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await res.json();
+
+                if (res.ok) {
+                    alert("✅ Success: " + result.message);
+                    document.getElementById('downloadPdf').style.display = "inline-block";
+                } else {
+                    alert("Save Failed: " + (result.error || "Unknown Error"));
+                }
+            } catch (err) {
+                alert("Network Error: Could not save to Astra Care Database.");
+            }
+        }
+
+        /**
+         * PDF GENERATION
+         */
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const name = document.getElementById('pName').innerText;
+            const summary = document.getElementById('summaryArea').value;
+
+            doc.setFontSize(22);
+            doc.setTextColor(0, 102, 204);
+            doc.text("ASTRA CARE CLINIC", 20, 20);
+
+            doc.setFontSize(12);
+            doc.setTextColor(0);
+            doc.text(`Patient: ${name}`, 20, 35);
+            doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 35);
+            doc.line(20, 40, 190, 40);
+
+            const splitText = doc.splitTextToSize(summary, 170);
+            doc.text(splitText, 20, 50);
+
+            doc.save(`Discharge_${name}.pdf`);
+        }
+
+        // Connect the AI button to the load function for regeneration
+        document.getElementById('draftBtn').onclick = loadDischargeData;
+    </script>
+</body>
+
+</html>

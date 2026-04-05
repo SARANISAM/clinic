@@ -30,13 +30,7 @@
 
       <input type="date" id="date" required />
       <input type="time" id="time" required />
-      <textarea id="reason" placeholder="Reason for Visit / Symptoms"></textarea>
-
-      <select id="status" required>
-        <option value="Scheduled">Scheduled</option>
-        <option value="Completed">Completed</option>
-        <option value="Cancelled">Cancelled</option>
-      </select>
+      <textarea id="reason" placeholder="Reason for Visit / Symptoms (optional)"></textarea>
 
       <button type="submit">Book Appointment</button>
     </form>
@@ -44,6 +38,9 @@
     <p id="message"></p>
 
     <h3>Appointment Records</h3>
+    <p style="font-size: 0.9em; color: #666; margin-bottom: 10px;">
+      🟢 Saved to database | 🟡 Saved locally only
+    </p>
     <table>
       <thead>
         <tr>
@@ -61,7 +58,7 @@
   </main>
 
   <script>
-    const API_URL = "https://clinic-tm9b.onrender.com";
+    const API = "https://clinic-tm9b.onrender.com";
 
     const patientMap = {};
     const doctorMap = {};
@@ -69,15 +66,31 @@
     // ── LOAD PATIENTS AND DOCTORS ──
     async function loadDropdowns() {
       try {
+        console.log("Loading dropdowns...");
         const [patRes, docRes] = await Promise.all([
-          fetch(`${API_URL}/patients`),
-          fetch(`${API_URL}/doctors`)
+          fetch(`${API}/patients`),
+          fetch(`${API}/doctors`)
         ]);
+
+        console.log("Patient response status:", patRes.status);
+        console.log("Doctor response status:", docRes.status);
+
+        if (!patRes.ok) {
+          throw new Error(`Failed to load patients: ${patRes.status}`);
+        }
+        if (!docRes.ok) {
+          throw new Error(`Failed to load doctors: ${docRes.status}`);
+        }
 
         const patients = await patRes.json();
         const doctors = await docRes.json();
 
+        console.log("Patients loaded:", patients);
+        console.log("Doctors loaded:", doctors);
+
         const patSelect = document.getElementById("patientId");
+        // Clear existing options except the first one
+        patSelect.innerHTML = '<option value="">Select Patient*</option>';
         patients.forEach(p => {
           patientMap[p.patient_id] = p.name;
           const opt = document.createElement("option");
@@ -88,20 +101,45 @@
 
         const docSelect = document.getElementById("doctorId");
         const docData = doctors.data || doctors;
+        console.log("Doctor data received:", docData);
+
+        // Clear existing options except the first one
+        docSelect.innerHTML = '<option value="">Select Doctor*</option>';
+
         const doctorNames = JSON.parse(localStorage.getItem("doctorNames")) || {};
         docData.forEach(d => {
+          console.log("Processing doctor:", d);
+
+          // Skip doctors that don't have proper database identifiers
+          if (!d.doctor_id && !d.id && !d.user_id) {
+            console.warn("Skipping doctor with no valid ID:", d);
+            return;
+          }
+
           const emailPrefix = d.email && d.email.includes('@') ? d.email.split('@')[0] : "";
-          const dName = doctorNames[d.user_id] || d.name || emailPrefix || d.user_id;
-          doctorMap[d.user_id] = dName;
+          const dName = doctorNames[d.user_id] || d.name || emailPrefix || d.user_id || "Unknown Doctor";
+
+          // Use doctor_id as primary key if available, otherwise use id, then user_id
+          // This ensures we use the actual database primary key for foreign key relationships
+          const doctorKey = d.doctor_id || d.id || d.user_id;
+          doctorMap[doctorKey] = dName;
+
+          console.log(`Doctor ${dName}: using key ${doctorKey} (doctor_id: ${d.doctor_id}, id: ${d.id}, user_id: ${d.user_id})`);
 
           const opt = document.createElement("option");
-          opt.value = d.user_id;
+          opt.value = doctorKey;
           opt.textContent = dName + " (" + (d.specialization || "General") + ")";
           docSelect.appendChild(opt);
         });
 
+        console.log("Final doctorMap:", doctorMap);
+
       } catch (err) {
         console.error("Error loading dropdowns:", err);
+        // Show error in the UI
+        const message = document.getElementById("message");
+        message.style.color = "red";
+        message.innerText = `❌ Error loading data: ${err.message}`;
       }
     }
 
@@ -121,6 +159,7 @@
         const pName = patientMap[a.patient_id] || a.patientName || "Unknown Patient";
         const dName = doctorMap[a.doctor_id] || a.doctorName || "Unknown Doctor";
         const reasonValue = a.reason || "—";
+        const statusIndicator = a.saved_to_server ? " 🟢" : " 🟡"; // Green dot for server-saved, yellow for local-only
 
         table.innerHTML += `
       <tr>
@@ -129,7 +168,7 @@
         <td>${pName}</td>
         <td>${dName}</td>
         <td>${reasonValue}</td>
-        <td>${a.status || "Scheduled"}</td>
+        <td>${a.status || "Scheduled"}${statusIndicator}</td>
       </tr>
     `;
       });
@@ -144,46 +183,112 @@
       const appointment_date = document.getElementById("date").value;
       const appointment_time = document.getElementById("time").value;
       const reason = document.getElementById("reason").value;
-      const status = document.getElementById("status").value;
       const message = document.getElementById("message");
 
+      // Validation
+      if (!patient_id || !doctor_id) {
+        message.style.color = "red";
+        message.innerText = "❌ Please select both patient and doctor";
+        return;
+      }
+
+      console.log("Attempting to create appointment:", {
+        patient_id,
+        doctor_id,
+        appointment_date,
+        appointment_time,
+        reason
+      });
+
       try {
-        const res = await fetch(`${API_URL}/appointments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patient_id, doctor_id, appointment_date, appointment_time, status })
+        // Use the correct backend endpoint that matches the server code
+        const apiUrl = `${API}/appointments`;
+        console.log("Making POST request to:", apiUrl);
+        console.log("Sending data:", {
+          patient_id,
+          doctor_id,
+          appointment_date,
+          appointment_time
         });
 
-        if (!res.ok) {
-          console.log("Database might have rejected the appointment due to constraints, but we'll reflect it in UI.");
+        const res = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patient_id,
+            doctor_id,
+            appointment_date,
+            appointment_time
+            // Note: status and reason are not sent as backend sets status to "Booked"
+          })
+        });
+
+        console.log("Response status:", res.status);
+        console.log("Response ok:", res.ok);
+
+        let server_app_id = "";
+        if (res.ok) {
+           const result = await res.json();
+           console.log("Server response:", result);
+
+           // Backend returns the inserted appointment data directly from Supabase
+           // It should be an array with one appointment object
+           if (Array.isArray(result) && result.length > 0) {
+             server_app_id = result[0].appointment_id;
+           } else if (result && result.appointment_id) {
+             server_app_id = result.appointment_id;
+           }
+
+           console.log("Appointment saved to server with ID:", server_app_id);
+        } else {
+          const errorText = await res.text();
+          console.error("Server error response:", errorText);
+
+          // Try to parse error details
+          let errorDetails = "";
+          try {
+            const errorData = JSON.parse(errorText);
+            errorDetails = errorData.message || errorData.details || errorText;
+          } catch (e) {
+            errorDetails = errorText;
+          }
+
+          message.style.color = "red";
+          message.innerText = `❌ Database Error: ${errorDetails}`;
+          return; // Don't save locally if server explicitly rejected
         }
 
-        // Save locally
+        // Only save locally if server save was successful
         const appointments = JSON.parse(localStorage.getItem("allAppointments")) || [];
-        appointments.push({
+        const newApp = {
+          appointment_id: server_app_id, // Use the server-generated ID
           patient_id,
           patientName: patientMap[patient_id],
           doctor_id,
           doctorName: doctorMap[doctor_id],
           appointment_date,
           appointment_time,
-          reason,
-          status
-        });
+          reason, // Store the reason locally even though backend doesn't use it
+          status: "Booked", // Match backend default status
+          saved_to_server: true // Mark as successfully saved to server
+        };
+
+        appointments.push(newApp);
         localStorage.setItem("allAppointments", JSON.stringify(appointments));
 
-        // Also sync with doctor's appointments array for doctorappointment.html interoperability
+        // Also sync with doctor's simplified lists
         const doctorAppts = JSON.parse(localStorage.getItem("appointmentList")) || [];
         doctorAppts.push({
+          appointment_id: server_app_id,
           name: patientMap[patient_id],
           date: appointment_date + " " + appointment_time,
-          status: status
+          status: "Booked" // Match backend status
         });
         localStorage.setItem("appointmentList", JSON.stringify(doctorAppts));
         localStorage.setItem("appointments", JSON.stringify(doctorAppts));
 
         message.style.color = "green";
-        message.innerText = "✅ Appointment Added!";
+        message.innerText = `✅ Appointment Added & Saved to Database! (ID: ${server_app_id})`;
         event.target.reset();
         loadAppointments();
 
