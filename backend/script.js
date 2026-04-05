@@ -399,76 +399,113 @@ app.post("/treatments", async (req, res) => {
 /* =========================
    BILLING MANAGEMENT
 ========================= */
+// =========================
+// BILLING MANAGEMENT
+// =========================
 
-// Store Payment
+// STORE BILL
 app.post("/bills", async (req, res) => {
 
-  const { patient_id, amount } = req.body
+  const {
+    patient_id,
+    consultation,
+    tests,
+    medicines,
+    others,
+    amount,
+    payment_status
+  } = req.body;
 
-  const { data, error } = await supabase
-    .from("bills")
-    .insert([
-      {
-        bill_id: uuidv4(),
-        patient_id,
-        amount,
-        bill_date: new Date()
-      }
-    ])
-
-  if (error) return res.status(500).json(error)
-
-  res.json(data)
-})
-
-
-// Get Bills of Patient
-app.get("/bills/:patient_id", async (req, res) => {
-
-  const patient_id = req.params.patient_id
-
-  const { data, error } = await supabase
-    .from("bills")
-    .select("*")
-    .eq("patient_id", patient_id)
-
-  if (error) return res.status(500).json(error)
-
-  res.json(data)
-})
-// Generate Bill from Appointment
-app.post("/generate-bill/:appointment_id", async (req, res) => {
-
-  const appointment_id = req.params.appointment_id
+  if (!patient_id || !amount) {
+    return res.status(400).json({
+      error: "patient_id and amount are required"
+    });
+  }
 
   try {
-    const { data: appointment } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("appointment_id", appointment_id)
-      .single()
-
-    const amount = 500
 
     const { data, error } = await supabase
       .from("bills")
       .insert([{
         bill_id: uuidv4(),
-        patient_id: appointment.patient_id,
-        appointment_id,
+        patient_id,
+        consultation: consultation || 0,
+        tests: tests || 0,
+        medicines: medicines || 0,
+        others: others || 0,
         amount,
         bill_date: new Date(),
-        payment_status: "Pending"
+        payment_status: payment_status || "Pending"
       }])
+      .select();
 
-    if (error) return res.status(500).json(error)
+    if (error) return res.status(500).json(error);
 
-    res.json({ message: "Bill generated", data })
+    res.json({
+      message: "Bill stored successfully",
+      data
+    });
 
   } catch (err) {
-    res.status(500).json(err)
+    res.status(500).json({
+      error: "Server error"
+    });
   }
-})
+});
+
+
+// GET BILLS OF PATIENT
+app.get("/bills/:patient_id", async (req, res) => {
+
+  const patient_id = req.params.patient_id;
+
+  try {
+
+    const { data, error } = await supabase
+      .from("bills")
+      .select("*")
+      .eq("patient_id", patient_id)
+      .order("bill_date", { ascending: false });
+
+    if (error) return res.status(500).json(error);
+
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    });
+  }
+});
+
+
+// PAY BILL
+app.put("/pay-bill/:bill_id", async (req, res) => {
+
+  const bill_id = req.params.bill_id;
+
+  try {
+
+    const { data, error } = await supabase
+      .from("bills")
+      .update({ payment_status: "Paid" })
+      .eq("bill_id", bill_id)
+      .select();
+
+    if (error) return res.status(500).json(error);
+
+    res.json({
+      message: "Payment updated",
+      data
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    });
+  }
+});
+
 
 
 /* =========================
@@ -476,28 +513,50 @@ app.post("/generate-bill/:appointment_id", async (req, res) => {
 ========================= */
 
 app.post("/signup", async (req, res) => {
-
   const { name, email, password } = req.body
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert([
-      {
-        user_id: uuidv4(),
-        name,
-        email,
-        password,
-        role_id: 2   // example: receptionist role
-      }
-    ])
-    .select()
+  try {
+    // 🔹 Step 1: Get role_id from roles table
+    const { data: roleData, error: roleError } = await supabase
+      .from("roles")
+      .select("role_id")
+      .eq("role_name", "receptionist") // change if needed
+      .single()
 
-  if (error) return res.status(500).json(error)
+    if (roleError || !roleData) {
+      return res.status(400).json({
+        error: "Role not found"
+      })
+    }
 
-  res.json({
-    message: "Receptionist registered successfully",
-    user: data
-  })
+    // 🔹 Step 2: Insert into users table
+    const { data, error } = await supabase
+      .from("users")
+      .insert([
+        {
+          user_id: uuidv4(),
+          name,
+          email,
+          password,
+          role_id: roleData.role_id
+        }
+      ])
+      .select()
+
+    if (error) {
+      return res.status(500).json(error)
+    }
+
+    res.json({
+      message: "User registered successfully",
+      user: data
+    })
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    })
+  }
 })
 /* =========================
    RECEPTIONIST LOGIN

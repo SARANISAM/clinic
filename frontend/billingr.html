@@ -108,9 +108,11 @@ async function loadBills(patient_id, patientName, status) {
       <tr>
         <td>${new Date(b.bill_date).toLocaleDateString()}</td>
         <td>${patientName || "Unknown Patient"}</td>
-        <td>Consultation + Tests</td>
+        <td>
+  C:${b.consultation} | T:${b.tests} | M:${b.medicines} | O:${b.others}
+</td>
         <td>₹${b.amount}</td>
-        <td>${status || "Paid"}</td>
+        <td>${b.payment_status}</td>
       </tr>
     `;
 
@@ -134,9 +136,14 @@ document.getElementById("billingForm").addEventListener("submit", async function
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        patient_id,
-        amount
-      })
+  patient_id,
+  consultation: document.getElementById("consultation").value,
+  tests: document.getElementById("tests").value,
+  medicines: document.getElementById("medicines").value,
+  others: document.getElementById("others").value,
+  amount,
+  payment_status: document.getElementById("status").value
+})
     });
 
     const patientName = document.getElementById("patient").selectedOptions[0].text;
