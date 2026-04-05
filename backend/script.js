@@ -4,11 +4,16 @@ const express = require("express")
 const cors = require("cors")
 const { createClient } = require("@supabase/supabase-js")
 const { v4: uuidv4 } = require("uuid")
+// ADD THIS LINE:
+const { GoogleGenerativeAI } = require("@google/generative-ai") 
 
 const app = express()
 
 app.use(cors())
 app.use(express.json())
+// Initialize Gemini with your .env key
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+
 
 /* =========================
    SUPABASE CONNECTION
@@ -49,6 +54,89 @@ app.get("/test-db", async (req,res)=>{
 /* =========================
    TEST SIGNUP (Browser Test)
 ========================= */
+/* =========================
+   DISCHARGE SYSTEM (AI)
+   ========================= */
+
+// ROUTE 1: Get AI Draft
+app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
+  const { appointmentId } = req.params;
+
+  try {
+    // 1. Fetch data using your existing Supabase client
+    const { data, error } = await supabase
+      .from("appointments")
+      .select(`
+        appointment_date,
+        patient_id,
+        patients (name, age, gender),
+        doctors (specialization, users (name)),
+        treatments (diagnosis, prescription),
+        bills (amount)
+      `)
+      .eq("appointment_id", appointmentId)
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: "Visit record not found" });
+
+    // 2. Setup Gemini Model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    // 3. Create the Prompt
+    const prompt = `
+      Act as a professional medical officer. Generate a structured discharge summary for:
+      Patient: ${data.patients.name} (${data.patients.age}y/o ${data.patients.gender})
+      Diagnosis: ${data.treatments[0]?.diagnosis || "General Consultation"}
+      Prescription: ${data.treatments[0]?.prescription || "Follow-up as needed"}
+      
+      Structure the response with:
+      - CLINICAL NARRATIVE: (Summarize the visit)
+      - DISCHARGE STATUS: (State the patient is stable)
+      - INSTRUCTIONS: (Actionable steps for the patient)
+    `;
+
+    const result = await model.generateContent(prompt);
+    const aiResponse = result.response.text();
+
+    res.json({ dbData: data, aiSummary: aiResponse });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate AI summary" });
+  }
+});
+
+// ROUTE 2: Finalize & Insert into Discharge Table
+app.post("/api/finalize-discharge", async (req, res) => {
+  const { appointment_id, patient_id, final_summary } = req.body;
+
+  try {
+    // Insert the finalized text into your empty 'discharge' table
+    const { error: insertError } = await supabase
+      .from("discharge")
+      .insert([
+        {
+          discharge_id: uuidv4(), // Using the uuid library you already have
+          appointment_id,
+          patient_id,
+          generated_summary: final_summary,
+          created_at: new Date().toISOString()
+        }
+      ]);
+
+    if (insertError) throw insertError;
+
+    // Update appointment status to 'Completed'
+    await supabase
+      .from("appointments")
+      .update({ status: "Completed" })
+      .eq("appointment_id", appointment_id);
+
+    res.json({ success: true, message: "Discharge record locked in database." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to save discharge record." });
+  }
+});
 
 /* =========================
    TEST SIGNUP (Browser Test)
@@ -236,25 +324,7 @@ app.put("/appointments/cancel/:id", async (req, res) => {
 
   res.json(data)
 })
-/*
-// Mark Appointment as Completed
-app.put("/appointments/complete/:id", async (req, res) => {
 
-  const id = req.params.id
-
-  const { data, error } = await supabase
-    .from("appointments")
-    .update({ status: "Completed" })
-    .eq("appointment_id", id)
-
-  if (error) return res.status(500).json(error)
-
-  res.json({
-    message: "Appointment marked as completed",
-    data
-  })
-})
-*/
 /* =========================
    TREATMENT RECORDS
 ========================= */
@@ -354,64 +424,7 @@ app.post("/generate-bill/:appointment_id", async (req, res) => {
   }
 })
 
-/* =========================
-   DISCHARGE MANAGEMENT
-========================= */
 
-// Generate Discharge Summary
-/*
-app.post("/generate-discharge/:appointment_id", async (req, res) => {
-
-  const appointment_id = req.params.appointment_id
-
-  try {
-
-    const { data, error } = await supabase
-      .from("appointments")
-      .select(`
-        patient_id,
-        patients (name, age, gender),
-        treatments (diagnosis, prescription)
-      `)
-      .eq("appointment_id", appointment_id)
-      .single()
-
-    if (error) return res.status(500).json(error)
-
-    const patient = data.patients
-    const treatment = data.treatments?.[0]
-
-    const summary = `
---- Discharge Summary ---
-
-Patient: ${patient.name}
-Age: ${patient.age}
-Gender: ${patient.gender}
-
-Diagnosis:
-${treatment?.diagnosis || "N/A"}
-
-Prescription:
-${treatment?.prescription || "N/A"}
-
-Advice:
-Take medicines properly and follow up if needed.
-`
-
-    await supabase.from("discharge").insert([{
-      discharge_id: uuidv4(),
-      appointment_id,
-      patient_id: data.patient_id,
-      generated_summary: summary
-    }])
-
-    res.json({ summary })
-
-  } catch (err) {
-    res.status(500).json(err)
-  }
-})
-  */
 /* =========================
    RECEPTIONIST SIGNUP
 ========================= */
