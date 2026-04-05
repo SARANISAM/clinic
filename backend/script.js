@@ -520,8 +520,10 @@ app.post("/doctor-login", async (req, res) => {
    SERVER
 ========================= */
 
+// Use the PORT provided by Render, or default to 5000 for local development
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Adding '0.0.0.0' is the key to making it visible to Render's port scanner
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is live and listening on port ${PORT}`);
 });
