@@ -68,7 +68,7 @@ app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
       .from("appointments")
       .select("*")
       .eq("appointment_id", appointmentId)
-      .single();
+      .maybeSingle();
 
     if (apptError || !appointment) {
       console.error("❌ Appointment error:", apptError);
