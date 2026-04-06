@@ -113,7 +113,7 @@ app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
     let aiSummary = "";
     try {
       // Switched to 'gemini-1.5-flash' for maximum stability on Render
-      const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-preview" });
       
       const diagnosis = treatments?.[0]?.diagnosis || "General Consultation";
       const prescription = treatments?.[0]?.prescription || "Follow-up as needed";
