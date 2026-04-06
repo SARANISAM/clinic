@@ -26,6 +26,10 @@ const supabase = createClient(
     db: { schema: "clinic" }   // IMPORTANT: uses clinic schema
   }
 )
+// Add this to your backend file
+app.get('/', (req, res) => {
+  res.send('Backend is running successfully!');
+});
 
 /* =========================
    TEST DATABASE CONNECTION
