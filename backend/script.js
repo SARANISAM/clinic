@@ -65,7 +65,7 @@ app.get("/test-db", async (req,res)=>{
 // ROUTE 1: Get AI Draft
 app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
   const { appointmentId } = req.params;
-
+  let dbData= {};//store db results here
   try {
     // ✅ 1. Get appointment
     const { data: appointment, error: apptError } = await supabase
@@ -97,8 +97,13 @@ app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
       .from("bills")
       .select("*")
       .eq("appointment_id", appointmentId);
+      dbData={...appointment,
+        patients:patient,treatments,bills};
+      }
 
-    // ✅ 5. Setup Gemini
+    // ✅ 5. Setup Gemini as new try catch
+    let aiSummary="";
+    try{
     const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     const diagnosis = treatments?.[0]?.diagnosis || "General Consultation";
@@ -119,23 +124,21 @@ app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
 
     const result = await model.generateContent(prompt);
     const aiSummary = result.response.text();
+    
+    } catch (aiErr) {
+      console.error("⚠️ Gemini Failed:", aiErr.message);
+      aiSummary = "Error: AI generation failed, but your records are loaded below. Please write the summary manually.";
+    }
 
-    // ✅ 6. Send response
-    res.json({
-      dbData: {
-        ...appointment,
-        patients: patient,
-        treatments: treatments,
-        bills: bills
-      },
-      aiSummary
-    });
+    // 3. Send the response (Even if AI failed, dbData is sent!)
+    res.json({ dbData, aiSummary });
 
-  } catch (err) {
-    console.error("❌ AI ERROR:", err);
-    res.status(500).json({ error: "Failed to generate AI summary" });
+  } catch (dbErr) {
+    console.error("❌ Database Error:", dbErr);
+    res.status(500).json({ error: "Database fetch failed", details: dbErr.message });
   }
 });
+
 
 
 // ROUTE 2: Finalize & Insert into Discharge Table
