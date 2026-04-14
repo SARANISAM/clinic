@@ -14,16 +14,13 @@
         <a href="doctorappointment.html">Appointments</a>
         <a href="doctorpatients.html">Patients</a>
         <a href="addtreatment.html">Add Treatment</a>
-
     </div>
 
     <div class="main">
         <h1>Add Treatment Record</h1>
 
-        <!-- ── FORM ── -->
         <div class="card">
             <form id="treatmentForm">
-
                 <label>Patient</label>
                 <select id="patientId" required>
                     <option value="">Select Patient*</option>
@@ -47,15 +44,11 @@
                 <input type="date" id="followup">
 
                 <button type="submit">Save Record</button>
-
             </form>
-
             <p id="successMessage" style="margin-top:10px;"></p>
         </div>
 
-        <!-- ── TREATMENT RECORDS TABLE ── -->
         <h2 style="margin-top:30px;">Treatment Records</h2>
-
         <div class="card">
             <table id="treatmentTable" style="width:100%; border-collapse:collapse;">
                 <thead>
@@ -70,441 +63,140 @@
                 </thead>
                 <tbody id="treatmentTableBody">
                     <tr>
-                        <td colspan="6" style="padding:16px; text-align:center; color:#888;">
-                            No treatment records yet.
+                        <td colspan="6" style="padding:16px; text-align:center; color:#888;">No treatment records yet.
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-
     </div>
 
     <script>
         const API = "https://clinic-tm9b.onrender.com";
-
-        // Store patient names for display in table
         const patientNames = {};
 
         document.addEventListener("DOMContentLoaded", async function () {
-
             const doctor = JSON.parse(localStorage.getItem("doctor"));
             if (!doctor) {
                 window.location.href = "indexpooja.html";
                 return;
             }
-            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
-            const docUserId = doctor.user_id || doctor.name;
-            const docDocId = doctorInfo.doctor_id;
 
-            // Fetch patients and appointments
-            let apiPatients = [];
+            // 1. Fetch Patients to map names to IDs
             try {
-                const res = await fetch(`${API}/patients`);
-                if (res.ok) apiPatients = await res.json();
-            } catch (e) { }
+                const pRes = await fetch(`${API}/patients`);
+                if (pRes.ok) {
+                    const apiPatients = await pRes.json();
+                    apiPatients.forEach(p => {
+                        patientNames[p.patient_id] = p.name;
+                    });
+                }
+            } catch (e) { console.error("Patient fetch failed", e); }
 
-            const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
-            const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
-            const myPatientIds = Array.from(new Set(myHistoricalApps.map(a => a.patient_id)));
-
-            // LOAD MY PATIENTS INTO DROPDOWN
+            // 2. Load Appointments Dropdown from Render
+            const selectAppt = document.getElementById("appointmentId");
             const selectPat = document.getElementById("patientId");
-            myPatientIds.forEach(pid => {
-                const p = apiPatients.find(x => x.patient_id === pid) || { patient_id: pid, name: myHistoricalApps.find(a => a.patient_id === pid).patientName };
-                patientNames[p.patient_id] = p.name;
+            const today = new Date().toISOString().split("T")[0];
+
+            try {
+                const aRes = await fetch(`${API}/appointments/${today}`);
+                if (aRes.ok) {
+                    const todayApps = await aRes.json();
+
+                    selectAppt.innerHTML = '<option value="">Select Today\'s Appointment*</option>';
+
+                    todayApps.forEach(a => {
+                        const opt = document.createElement("option");
+                        opt.value = a.appointment_id; // Using the UUID from backend
+                        const pName = patientNames[a.patient_id] || "Unknown Patient";
+                        opt.textContent = `${a.appointment_time} - ${pName}`;
+                        selectAppt.appendChild(opt);
+                    });
+                }
+            } catch (e) { console.error("Appointment fetch failed", e); }
+
+            // Populate Patient Dropdown (Using mapping from step 1)
+            Object.keys(patientNames).forEach(id => {
                 const opt = document.createElement("option");
-                opt.value = p.patient_id;
-                opt.textContent = p.name || p.patient_id;
+                opt.value = id;
+                opt.textContent = patientNames[id];
                 selectPat.appendChild(opt);
             });
 
-            // LOAD TODAY'S APPOINTMENTS INTO DROPDOWN
-            const today = new Date().toISOString().split("T")[0];
-            let apiAppsRaw = [];
-            try {
-                const res = await fetch(`${API}/appointments/${today}`);
-                if (res.ok) apiAppsRaw = await res.json();
-            } catch (err) { }
-
-            // Standardize and merge
-            const allTodayApps = [...apiAppsRaw, ...localApps.filter(a => a.appointment_date === today)];
-            const myTodayApps = allTodayApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
-
-            // Deduplicate by UUID
-            const uniqueApptsMap = new Map();
-            myTodayApps.forEach(a => {
-                // Find a UUID using the same logic as doctorappointment.html
-                const uuidFields = ['appointment_id', 'id', '_id', 'AppointmentID', 'appointmentId'];
-                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-                let foundUuid = null;
-                for (let f of uuidFields) {
-                    if (a[f] && typeof a[f] === 'string' && uuidRegex.test(a[f])) {
-                        foundUuid = a[f];
-                        break;
-                    }
-                }
-                const finalId = foundUuid || a.appointment_id || a.id || "no-id";
-                if (!uniqueApptsMap.has(finalId)) {
-                    uniqueApptsMap.set(finalId, { ...a, finalId });
-                }
-            });
-
-            const selectAppt = document.getElementById("appointmentId");
-            uniqueApptsMap.forEach(a => {
-                const opt = document.createElement("option");
-                opt.value = a.finalId;
-                const pName = patientNames[a.patient_id] || a.patientName || a.patient_id;
-                opt.textContent = (a.appointment_time || "") + " — " + pName + (a.finalId === "no-id" ? " (⚠️ Missing ID)" : "");
-                selectAppt.appendChild(opt);
-            });
-
-            // LOAD EXISTING RECORDS FROM LOCALSTORAGE (persists across sessions)
             renderTable();
 
-            // SUBMIT TREATMENT
-            document.getElementById("treatmentForm").addEventListener("submit", async function (event) {
-                event.preventDefault();
-
-                const patientId = document.getElementById("patientId").value;
-                const appointment_id = document.getElementById("appointmentId").value;
-                const diagnosis = document.getElementById("diagnosis").value;
-                const prescription = document.getElementById("prescription").value;
-                const notes = document.getElementById("notes").value;
-                const followup = document.getElementById("followup").value;
+            // 3. Handle Form Submit (POST to /treatments)
+            document.getElementById("treatmentForm").addEventListener("submit", async function (e) {
+                e.preventDefault();
                 const successMessage = document.getElementById("successMessage");
 
-                successMessage.textContent = "";
+                // PAYLOAD MUST MATCH BACKEND (Line 389 of your code)
+                const payload = {
+                    appointment_id: document.getElementById("appointmentId").value,
+                    diagnosis: document.getElementById("diagnosis").value,
+                    prescription: document.getElementById("prescription").value
+                };
 
                 try {
-                    // SAVE TO BACKEND
                     const response = await fetch(`${API}/treatments`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ appointment_id, diagnosis, prescription })
+                        body: JSON.stringify(payload)
                     });
 
-                    await response.json();
+                    const result = await response.json();
 
-                    // SAVE TO LOCALSTORAGE FOR DISPLAY
-                    const record = {
-                        patientId,
-                        patientName: patientNames[patientId] || patientId,
-                        appointment_id,
-                        diagnosis,
-                        prescription,
-                        notes,
-                        followup,
-                        savedAt: new Date().toLocaleString()
-                    };
+                    if (!response.ok) {
+                        throw new Error(result.message || "Failed to save to database");
+                    }
 
+                    // Save locally for the table display
+                    const patient_id = document.getElementById("patientId").value;
                     const existing = JSON.parse(localStorage.getItem("treatmentRecords")) || [];
-                    existing.unshift(record); // add to top
+                    existing.unshift({
+                        ...payload,
+                        patientName: patientNames[patient_id] || "Patient",
+                        notes: document.getElementById("notes").value,
+                        followup: document.getElementById("followup").value
+                    });
                     localStorage.setItem("treatmentRecords", JSON.stringify(existing));
 
                     successMessage.style.color = "green";
-                    successMessage.innerText = "✅ Treatment Record Saved Successfully!";
-
-                    document.getElementById("treatmentForm").reset();
+                    successMessage.innerText = "✅ Treatment Record Saved to Supabase!";
+                    this.reset();
                     renderTable();
 
                 } catch (err) {
+                    console.error("Submission Error:", err);
                     successMessage.style.color = "red";
-                    successMessage.innerText = "❌ Error saving treatment record. Please try again.";
+                    successMessage.innerText = "❌ Error: " + err.message;
                 }
             });
-
         });
 
-        // RENDER TABLE FROM LOCALSTORAGE
         function renderTable() {
             const tbody = document.getElementById("treatmentTableBody");
             const records = JSON.parse(localStorage.getItem("treatmentRecords")) || [];
-
-            tbody.innerHTML = "";
-
-            if (!records.length) {
-                tbody.innerHTML = `
-            <tr>
-                <td colspan="6" style="padding:16px; text-align:center; color:#888;">
-                    No treatment records yet.
-                </td>
-            </tr>
-        `;
-                return;
-            }
+            tbody.innerHTML = records.length ? "" : '<tr><td colspan="6" style="text-align:center; padding:20px;">No records found.</td></tr>';
 
             records.forEach(r => {
                 const row = document.createElement("tr");
                 row.style.borderBottom = "1px solid #1a3a5c";
+                // Slice the UUID for display so it doesn't break the table layout
+                const shortId = r.appointment_id ? r.appointment_id.substring(0, 8) + "..." : "—";
+
                 row.innerHTML = `
-            <td style="padding:10px;">${r.patientName || r.patientId || "—"}</td>
-            <td style="padding:10px; font-size:12px; color:#888;">${r.appointment_id || "—"}</td>
-            <td style="padding:10px;">${r.diagnosis || "—"}</td>
-            <td style="padding:10px;">${r.prescription || "—"}</td>
-            <td style="padding:10px;">${r.notes || "—"}</td>
-            <td style="padding:10px;">${r.followup || "—"}</td>
-        `;
+                <td style="padding:10px;">${r.patientName}</td>
+                <td style="padding:10px;"><code title="${r.appointment_id}">${shortId}</code></td>
+                <td style="padding:10px;">${r.diagnosis}</td>
+                <td style="padding:10px;">${r.prescription}</td>
+                <td style="padding:10px;">${r.notes || "—"}</td>
+                <td style="padding:10px;">${r.followup || "—"}</td>
+            `;
                 tbody.appendChild(row);
             });
         }
     </script>
-
-</body>
-
-</html>
-<!DOCTYPE html>
-<html>
-
-<head>
-    <title>Add Treatment</title>
-    <link rel="stylesheet" href="stylep.css">
-</head>
-
-<body>
-
-    <div class="sidebar">
-        <h2>Doctor Panel</h2>
-        <a href="doctordashboard.html">Dashboard</a>
-        <a href="doctorappointment.html">Appointments</a>
-        <a href="doctorpatients.html">Patients</a>
-        <a href="addtreatment.html">Add Treatment</a>
-
-    </div>
-
-    <div class="main">
-        <h1>Add Treatment Record</h1>
-
-        <!-- ── FORM ── -->
-        <div class="card">
-            <form id="treatmentForm">
-
-                <label>Patient</label>
-                <select id="patientId" required>
-                    <option value="">Select Patient*</option>
-                </select>
-
-                <label>Appointment</label>
-                <select id="appointmentId" required>
-                    <option value="">Select Today's Appointment*</option>
-                </select>
-
-                <label>Diagnosis</label>
-                <textarea id="diagnosis" required></textarea>
-
-                <label>Prescription</label>
-                <textarea id="prescription" required></textarea>
-
-                <label>Notes</label>
-                <textarea id="notes"></textarea>
-
-                <label>Follow-up Date</label>
-                <input type="date" id="followup">
-
-                <button type="submit">Save Record</button>
-
-            </form>
-
-            <p id="successMessage" style="margin-top:10px;"></p>
-        </div>
-
-        <!-- ── TREATMENT RECORDS TABLE ── -->
-        <h2 style="margin-top:30px;">Treatment Records</h2>
-
-        <div class="card">
-            <table id="treatmentTable" style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr>
-                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Patient</th>
-                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Appointment ID</th>
-                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Diagnosis</th>
-                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Prescription</th>
-                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Notes</th>
-                        <th style="padding:10px; text-align:left; border-bottom:1px solid #1e4060;">Follow-up</th>
-                    </tr>
-                </thead>
-                <tbody id="treatmentTableBody">
-                    <tr>
-                        <td colspan="6" style="padding:16px; text-align:center; color:#888;">
-                            No treatment records yet.
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-    </div>
-
-    <script>
-        const API = "https://clinic-tm9b.onrender.com";
-
-        // Store patient names for display in table
-        const patientNames = {};
-
-        document.addEventListener("DOMContentLoaded", async function () {
-
-            const doctor = JSON.parse(localStorage.getItem("doctor"));
-            if (!doctor) {
-                window.location.href = "indexpooja.html";
-                return;
-            }
-            const doctorInfo = doctor.doctors && doctor.doctors[0] ? doctor.doctors[0] : {};
-            const docUserId = doctor.user_id || doctor.name;
-            const docDocId = doctorInfo.doctor_id;
-
-            // Fetch patients and appointments
-            let apiPatients = [];
-            try {
-                const res = await fetch(`${API}/patients`);
-                if (res.ok) apiPatients = await res.json();
-            } catch (e) { }
-
-            const localApps = JSON.parse(localStorage.getItem("allAppointments")) || [];
-            const myHistoricalApps = localApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
-            const myPatientIds = Array.from(new Set(myHistoricalApps.map(a => a.patient_id)));
-
-            // LOAD MY PATIENTS INTO DROPDOWN
-            const selectPat = document.getElementById("patientId");
-            myPatientIds.forEach(pid => {
-                const p = apiPatients.find(x => x.patient_id === pid) || { patient_id: pid, name: myHistoricalApps.find(a => a.patient_id === pid).patientName };
-                patientNames[p.patient_id] = p.name;
-                const opt = document.createElement("option");
-                opt.value = p.patient_id;
-                opt.textContent = p.name || p.patient_id;
-                selectPat.appendChild(opt);
-            });
-
-            // LOAD TODAY'S APPOINTMENTS INTO DROPDOWN
-            const today = new Date().toISOString().split("T")[0];
-            let apiAppsRaw = [];
-            try {
-                const res = await fetch(`${API}/appointments/${today}`);
-                if (res.ok) apiAppsRaw = await res.json();
-            } catch (err) { }
-
-            // Standardize and merge
-            const allTodayApps = [...apiAppsRaw, ...localApps.filter(a => a.appointment_date === today)];
-            const myTodayApps = allTodayApps.filter(a => a.doctor_id === docUserId || a.doctor_id === docDocId);
-
-            // Deduplicate by UUID
-            const uniqueApptsMap = new Map();
-            myTodayApps.forEach(a => {
-                // Find a UUID using the same logic as doctorappointment.html
-                const uuidFields = ['appointment_id', 'id', '_id', 'AppointmentID', 'appointmentId'];
-                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-                let foundUuid = null;
-                for (let f of uuidFields) {
-                    if (a[f] && typeof a[f] === 'string' && uuidRegex.test(a[f])) {
-                        foundUuid = a[f];
-                        break;
-                    }
-                }
-                const finalId = foundUuid || a.appointment_id || a.id || "no-id";
-                if (!uniqueApptsMap.has(finalId)) {
-                    uniqueApptsMap.set(finalId, { ...a, finalId });
-                }
-            });
-
-            const selectAppt = document.getElementById("appointmentId");
-            uniqueApptsMap.forEach(a => {
-                const opt = document.createElement("option");
-                opt.value = a.finalId;
-                const pName = patientNames[a.patient_id] || a.patientName || a.patient_id;
-                opt.textContent = (a.appointment_time || "") + " — " + pName + (a.finalId === "no-id" ? " (⚠️ Missing ID)" : "");
-                selectAppt.appendChild(opt);
-            });
-
-            // LOAD EXISTING RECORDS FROM LOCALSTORAGE (persists across sessions)
-            renderTable();
-
-            // SUBMIT TREATMENT
-            document.getElementById("treatmentForm").addEventListener("submit", async function (event) {
-                event.preventDefault();
-
-                const patientId = document.getElementById("patientId").value;
-                const appointment_id = document.getElementById("appointmentId").value;
-                const diagnosis = document.getElementById("diagnosis").value;
-                const prescription = document.getElementById("prescription").value;
-                const notes = document.getElementById("notes").value;
-                const followup = document.getElementById("followup").value;
-                const successMessage = document.getElementById("successMessage");
-
-                successMessage.textContent = "";
-
-                try {
-                    // SAVE TO BACKEND
-                    const response = await fetch(`${API}/treatments`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ appointment_id, diagnosis, prescription })
-                    });
-
-                    await response.json();
-
-                    // SAVE TO LOCALSTORAGE FOR DISPLAY
-                    const record = {
-                        patientId,
-                        patientName: patientNames[patientId] || patientId,
-                        appointment_id,
-                        diagnosis,
-                        prescription,
-                        notes,
-                        followup,
-                        savedAt: new Date().toLocaleString()
-                    };
-
-                    const existing = JSON.parse(localStorage.getItem("treatmentRecords")) || [];
-                    existing.unshift(record); // add to top
-                    localStorage.setItem("treatmentRecords", JSON.stringify(existing));
-
-                    successMessage.style.color = "green";
-                    successMessage.innerText = "✅ Treatment Record Saved Successfully!";
-
-                    document.getElementById("treatmentForm").reset();
-                    renderTable();
-
-                } catch (err) {
-                    successMessage.style.color = "red";
-                    successMessage.innerText = "❌ Error saving treatment record. Please try again.";
-                }
-            });
-
-        });
-
-        // RENDER TABLE FROM LOCALSTORAGE
-        function renderTable() {
-            const tbody = document.getElementById("treatmentTableBody");
-            const records = JSON.parse(localStorage.getItem("treatmentRecords")) || [];
-
-            tbody.innerHTML = "";
-
-            if (!records.length) {
-                tbody.innerHTML = `
-            <tr>
-                <td colspan="6" style="padding:16px; text-align:center; color:#888;">
-                    No treatment records yet.
-                </td>
-            </tr>
-        `;
-                return;
-            }
-
-            records.forEach(r => {
-                const row = document.createElement("tr");
-                row.style.borderBottom = "1px solid #1a3a5c";
-                row.innerHTML = `
-            <td style="padding:10px;">${r.patientName || r.patientId || "—"}</td>
-            <td style="padding:10px; font-size:12px; color:#888;">${r.appointment_id || "—"}</td>
-            <td style="padding:10px;">${r.diagnosis || "—"}</td>
-            <td style="padding:10px;">${r.prescription || "—"}</td>
-            <td style="padding:10px;">${r.notes || "—"}</td>
-            <td style="padding:10px;">${r.followup || "—"}</td>
-        `;
-                tbody.appendChild(row);
-            });
-        }
-    </script>
-
 </body>
 
 </html>

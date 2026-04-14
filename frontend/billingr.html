@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Billing Management - AstraCare</title>
   <link rel="stylesheet" href="stylereception.css" />
 </head>
@@ -13,61 +14,54 @@
 </header>
 
 <main>
+  <a href="dashr.html" class="back-button">← Back to Dashboard</a>
 
-<a href="dashr.html" class="back-button">← Back to Dashboard</a>
+  <h2>Generate Invoice</h2>
 
-<h2>Generate Invoice</h2>
+  <form id="billingForm">
+    <select id="patient" required>
+      <option value="">Select Patient*</option>
+    </select>
 
-<form id="billingForm">
+    <input type="date" id="date" required />
 
-  <!-- ✅ PATIENT -->
-  <select id="patient" required>
-    <option value="">Select Patient*</option>
-  </select>
+    <input type="number" id="consultation" placeholder="Consultation Fee (₹)" oninput="calculateTotal()" />
+    <input type="number" id="tests" placeholder="Lab Tests (₹)" oninput="calculateTotal()" />
+    <input type="number" id="medicines" placeholder="Medicines (₹)" oninput="calculateTotal()" />
+    <input type="number" id="others" placeholder="Other Charges (₹)" oninput="calculateTotal()" />
 
-  <input type="date" id="date" required />
+    <input type="text" id="totalAmount" placeholder="Total Amount (₹)" readonly />
 
-  <input type="number" id="consultation" placeholder="Consultation Fee (₹)" oninput="calculateTotal()" />
-  <input type="number" id="tests" placeholder="Lab Tests (₹)" oninput="calculateTotal()" />
-  <input type="number" id="medicines" placeholder="Medicines (₹)" oninput="calculateTotal()" />
-  <input type="number" id="others" placeholder="Other Charges (₹)" oninput="calculateTotal()" />
+    <select id="status" required>
+      <option value="">Payment Status*</option>
+      <option value="Paid">Paid</option>
+      <option value="Unpaid">Unpaid</option>
+      <option value="Pending">Pending</option>
+    </select>
 
-  <input type="text" id="totalAmount" placeholder="Total Amount (₹)" readonly />
+    <button type="submit">Generate Invoice</button>
+  </form>
 
-  <select id="status" required>
-    <option value="">Payment Status*</option>
-    <option>Paid</option>
-    <option>Unpaid</option>
-    <option>Pending</option>
-  </select>
+  <p id="message" style="font-weight: bold; margin-top: 10px;"></p>
 
-  <button type="submit">Generate Invoice</button>
-
-</form>
-
-<p id="message"></p>
-
-<h3>Billing Records</h3>
-<table>
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Patient</th>
-      <th>Services</th>
-      <th>Total (₹)</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody id="billingTable"></tbody>
-</table>
-
+  <h3>Billing Records</h3>
+  <table border="1" style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+      <tr style="background-color: #f2f2f2;">
+        <th>Date</th>
+        <th>Patient</th>
+        <th>Total (₹)</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="billingTable"></tbody>
+  </table>
 </main>
 
 <script>
+const API_URL = "https://clinic-tm9b.onrender.com";
 
-const API = "https://clinic-tm9b.onrender.com";
-
-// ✅ CALCULATE TOTAL
+// CALCULATE TOTAL
 function calculateTotal() {
   const consultation = parseFloat(document.getElementById('consultation').value) || 0;
   const tests = parseFloat(document.getElementById('tests').value) || 0;
@@ -78,85 +72,99 @@ function calculateTotal() {
   document.getElementById('totalAmount').value = total.toFixed(2);
 }
 
-// ✅ LOAD PATIENTS
+// LOAD PATIENTS
 async function loadPatients() {
-  const res = await fetch(`${API}/patients`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API_URL}/patients`);
+    const data = await res.json();
+    const select = document.getElementById("patient");
 
-  const select = document.getElementById("patient");
-
-  data.forEach(p => {
-    const option = document.createElement("option");
-    option.value = p.patient_id;
-    option.textContent = p.name;
-    select.appendChild(option);
-  });
+    data.forEach(p => {
+      const option = document.createElement("option");
+      option.value = p.patient_id;
+      option.textContent = p.name;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error("Failed to load patients", err);
+  }
 }
 
-// ✅ LOAD BILL HISTORY
-async function loadBills(patient_id, patientName, status) {
+// LOAD BILLS
+async function loadBills(patient_id, patientName) {
+  try {
+    const res = await fetch(`${API_URL}/bills/${patient_id}`);
+    const bills = await res.json();
+    console.log(bills);
+    const table = document.getElementById("billingTable");
+    table.innerHTML = "";
 
-  const res = await fetch(`${API}/bills/${patient_id}`);
-  const bills = await res.json();
-
-  const table = document.getElementById("billingTable");
-  table.innerHTML = "";
-
-  bills.forEach(b => {
-
-    const row = `
-      <tr>
-        <td>${new Date(b.bill_date).toLocaleDateString()}</td>
-        <td>${patientName || "Unknown Patient"}</td>
-        <td>Consultation + Tests</td>
-        <td>₹${b.amount}</td>
-        <td>${status || "Paid"}</td>
-      </tr>
-    `;
-
-    table.innerHTML += row;
-  });
+    bills.forEach(b => {
+      const row = `
+        <tr>
+          <td>${new Date(b.bill_date).toLocaleDateString()}</td>
+          <td>${patientName}</td>
+          <td>₹${b.amount}</td>
+          <td>${b.payment_status}</td>
+        </tr>
+      `;
+      table.innerHTML += row;
+    });
+  } catch (err) {
+    console.error("Error loading bill history", err);
+  }
 }
 
-// ✅ SUBMIT BILL
+// AUTO LOAD BILLS ON PATIENT SELECT
+document.getElementById("patient").addEventListener("change", function () {
+  const patient_id = this.value;
+  const patientName = this.selectedOptions[0].text;
+  if (patient_id) {
+    loadBills(patient_id, patientName);
+  }
+});
+
+// SUBMIT BILL
 document.getElementById("billingForm").addEventListener("submit", async function(e) {
-
   e.preventDefault();
 
   const patient_id = document.getElementById("patient").value;
   const amount = document.getElementById("totalAmount").value;
+  const patientName = document.getElementById("patient").selectedOptions[0].text;
+
+  const billData = {
+    patient_id: patient_id,
+    consultation: document.getElementById("consultation").value || 0,
+    tests: document.getElementById("tests").value || 0,
+    medicines: document.getElementById("medicines").value || 0,
+    others: document.getElementById("others").value || 0,
+    amount: amount,
+    payment_status: document.getElementById("status").value
+  };
 
   try {
-
-    await fetch(`${API}/bills`, {
+    const response = await fetch(`${API_URL}/bills`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        patient_id,
-        amount
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(billData)
     });
 
-    const patientName = document.getElementById("patient").selectedOptions[0].text;
-    const paymentStatus = document.getElementById("status").value;
-
-    document.getElementById("message").innerText = "Invoice Generated!";
-    document.getElementById("billingForm").reset();
-
-    // reload table
-    loadBills(patient_id, patientName, paymentStatus);
-
-  } catch {
+    if (response.ok) {
+      document.getElementById("message").innerText = "Invoice Generated Successfully!";
+      document.getElementById("message").style.color = "green";
+      document.getElementById("billingForm").reset();
+      loadBills(patient_id, patientName);
+    } else {
+      throw new Error("Server error");
+    }
+  } catch (err) {
     document.getElementById("message").innerText = "Error generating bill";
+    document.getElementById("message").style.color = "red";
   }
-
 });
 
-// LOAD PATIENTS ON START
+// INITIAL LOAD
 loadPatients();
-
 </script>
 
 </body>

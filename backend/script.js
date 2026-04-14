@@ -5,7 +5,7 @@ const cors = require("cors")
 const { createClient } = require("@supabase/supabase-js")
 const { v4: uuidv4 } = require("uuid")
 // ADD THIS LINE:
-const { GoogleGenerativeAI } = require("@google/generative-ai") 
+const { GoogleGenerativeAI } = require("@google/generative-ai")
 
 const app = express()
 
@@ -26,28 +26,32 @@ const supabase = createClient(
     db: { schema: "clinic" }   // IMPORTANT: uses clinic schema
   }
 )
+// Add this to your backend file
+app.get('/', (req, res) => {
+  res.send('Backend is running successfully!');
+});
 
 /* =========================
    TEST DATABASE CONNECTION
 ========================= */
 
 
-app.get("/test-db", async (req,res)=>{
+app.get("/test-db", async (req, res) => {
 
-  const {data,error} = await supabase
-  .from("patients")
-  .select("*")
+  const { data, error } = await supabase
+    .from("patients")
+    .select("*")
 
-  if(error){
+  if (error) {
     return res.status(500).json({
-      message:"Database connection failed",
-      error:error
+      message: "Database connection failed",
+      error: error
     })
   }
 
   res.json({
-    message:"Database connected successfully",
-    data:data
+    message: "Database connected successfully",
+    data: data
   })
 
 })
@@ -63,73 +67,95 @@ app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
   const { appointmentId } = req.params;
 
   try {
-    const { data, error } = await supabase
+    // ✅ 1. Get appointment
+    const { data: appointment, error: apptError } = await supabase
       .from("appointments")
-      .select(`
-        appointment_date,
-        patient_id,
-        status,
-        patients!inner (name, age, gender),
-        doctors!inner (
-          specialization,
-          users (name)
-        ),
-        treatments (diagnosis, prescription),
-        bills (amount)
-      `)
+      .select("*")
       .eq("appointment_id", appointmentId)
       .maybeSingle();
 
-    if (error) {
-      console.error("Supabase Query Error:", error);
-      return res.status(500).json({ error: error.message });
+    if (apptError || !appointment) {
+      console.error("❌ Appointment error:", apptError);
+      return res.status(404).json({ error: "Visit record not found" });
     }
 
-    if (!data) {
-      return res.status(404).json({ error: "No appointment found for this ID" });
-    }
+    // ✅ 2. Get patient
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("patient_id", appointment.patient_id)
+      .single();
 
-    // Prepare data for Gemini with fallback values
-    const patientName = data.patients?.name || "N/A";
-    const doctorName = data.doctors?.users?.name || "the attending physician";
-    const diagnosis = data.treatments?.[0]?.diagnosis || "General evaluation";
-    const prescription = data.treatments?.[0]?.prescription || "Follow-up required";
+    // ✅ 3. Get treatment
+    const { data: treatments } = await supabase
+      .from("treatments")
+      .select("*")
+      .eq("appointment_id", appointmentId);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
+    // ✅ 4. Get bill
+    const { data: bills } = await supabase
+      .from("bills")
+      .select("*")
+      .eq("appointment_id", appointmentId);
+
+    // ✅ 5. Setup Gemini
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+
+    const diagnosis = treatments?.[0]?.diagnosis || "General Consultation";
+    const prescription = treatments?.[0]?.prescription || "Follow-up as needed";
+
     const prompt = `
-      Act as a professional medical officer. Generate a structured discharge summary for:
-      Patient: ${patientName} (${data.patients?.age}y/o ${data.patients?.gender})
-      Attending Doctor: Dr. ${doctorName} (${data.doctors?.specialization})
+      Act as a professional medical officer. Generate a structured discharge summary.Return the response in clean Markdown format using headers(##)and bold text.
+
+      Patient: ${patient?.name || "Unknown"} (${patient?.age || "-"}y/o ${patient?.gender || "-"})
       Diagnosis: ${diagnosis}
       Prescription: ${prescription}
-      
-      Structure the response with:
-      - CLINICAL NARRATIVE: (Summarize the visit)
-      - DISCHARGE STATUS: (Current state)
-      - INSTRUCTIONS: (Medication and care)
+
+      Format:
+      - CLINICAL NARRATIVE
+      - DISCHARGE STATUS
+      - INSTRUCTIONS
     `;
 
     const result = await model.generateContent(prompt);
-    const aiResponse = result.response.text();
+    const aiSummary = result.response.text();
 
-    res.json({ dbData: data, aiSummary: aiResponse });
+    // ✅ 6. Send response
+    res.json({
+      dbData: {
+        ...appointment,
+        patients: patient,
+        treatments: treatments,
+        bills: bills
+      },
+      aiSummary
+    });
+
   } catch (err) {
-    console.error("Route Crash:", err);
-    res.status(500).json({ error: "AI Generation Failed", details: err.message });
+    console.error("❌ AI ERROR:", err);
+    res.status(500).json({ error: "Failed to generate AI summary" });
   }
 });
+
+
 // ROUTE 2: Finalize & Insert into Discharge Table
 app.post("/api/finalize-discharge", async (req, res) => {
   const { appointment_id, patient_id, final_summary } = req.body;
 
   try {
-    // Insert the finalized text into your empty 'discharge' table
+    console.log("🚀 Incoming:", { appointment_id, patient_id });
+
+    // ✅ Validate input
+    if (!appointment_id || !patient_id || !final_summary) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // ✅ Insert into discharge table
     const { error: insertError } = await supabase
       .from("discharge")
       .insert([
         {
-          discharge_id: uuidv4(), // Using the uuid library you already have
+          discharge_id: uuidv4(),
           appointment_id,
           patient_id,
           generated_summary: final_summary,
@@ -137,51 +163,61 @@ app.post("/api/finalize-discharge", async (req, res) => {
         }
       ]);
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error("❌ INSERT ERROR:", insertError);
+      return res.status(500).json({ error: insertError.message });
+    }
 
-    // Update appointment status to 'Completed'
-    await supabase
+    // ✅ Update appointment status
+    const { error: updateError } = await supabase
       .from("appointments")
       .update({ status: "Completed" })
       .eq("appointment_id", appointment_id);
 
-    res.json({ success: true, message: "Discharge record locked in database." });
+    if (updateError) {
+      console.error("❌ UPDATE ERROR:", updateError);
+    }
+
+    res.json({
+      success: true,
+      message: "✅ Discharge saved successfully"
+    });
+
   } catch (err) {
-    console.error(err);
+    console.error("❌ FINAL ERROR:", err);
     res.status(500).json({ error: "Failed to save discharge record." });
   }
 });
-
 /* =========================
    TEST SIGNUP (Browser Test)
 ========================= */
 
-app.get("/test-signup", async (req,res)=>{
+app.get("/test-signup", async (req, res) => {
 
- const {data,error} = await supabase
- .from("users")
- .insert([
-  {
-   user_id: uuidv4(),
-   name: "Test Receptionist",
-   email: "testreception@clinic.com",
-   password: "rec123",
-   role_id: 2
+  const { data, error } = await supabase
+    .from("users")
+    .insert([
+      {
+        user_id: uuidv4(),
+        name: "Test Receptionist",
+        email: "testreception@clinic.com",
+        password: "rec123",
+        role_id: 2
+      }
+    ])
+    .select()
+
+  if (error) {
+    return res.json({
+      message: "Signup failed",
+      error: error
+    })
   }
- ])
- .select()
 
- if(error){
-  return res.json({
-   message:"Signup failed",
-   error:error
+  res.json({
+    message: "Signup working",
+    inserted: data
   })
- }
-
- res.json({
-  message:"Signup working",
-  inserted:data
- })
 
 })
 
@@ -367,76 +403,113 @@ app.post("/treatments", async (req, res) => {
 /* =========================
    BILLING MANAGEMENT
 ========================= */
+// =========================
+// BILLING MANAGEMENT
+// =========================
 
-// Store Payment
+// STORE BILL
 app.post("/bills", async (req, res) => {
 
-  const { patient_id, amount } = req.body
+  const {
+    patient_id,
+    consultation,
+    tests,
+    medicines,
+    others,
+    amount,
+    payment_status
+  } = req.body;
 
-  const { data, error } = await supabase
-    .from("bills")
-    .insert([
-      {
-        bill_id: uuidv4(),
-        patient_id,
-        amount,
-        bill_date: new Date()
-      }
-    ])
-
-  if (error) return res.status(500).json(error)
-
-  res.json(data)
-})
-
-
-// Get Bills of Patient
-app.get("/bills/:patient_id", async (req, res) => {
-
-  const patient_id = req.params.patient_id
-
-  const { data, error } = await supabase
-    .from("bills")
-    .select("*")
-    .eq("patient_id", patient_id)
-
-  if (error) return res.status(500).json(error)
-
-  res.json(data)
-})
-// Generate Bill from Appointment
-app.post("/generate-bill/:appointment_id", async (req, res) => {
-
-  const appointment_id = req.params.appointment_id
+  if (!patient_id || !amount) {
+    return res.status(400).json({
+      error: "patient_id and amount are required"
+    });
+  }
 
   try {
-    const { data: appointment } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("appointment_id", appointment_id)
-      .single()
-
-    const amount = 500
 
     const { data, error } = await supabase
       .from("bills")
       .insert([{
         bill_id: uuidv4(),
-        patient_id: appointment.patient_id,
-        appointment_id,
+        patient_id,
+        consultation: consultation || 0,
+        tests: tests || 0,
+        medicines: medicines || 0,
+        others: others || 0,
         amount,
         bill_date: new Date(),
-        payment_status: "Pending"
+        payment_status: payment_status || "Pending"
       }])
+      .select();
 
-    if (error) return res.status(500).json(error)
+    if (error) return res.status(500).json(error);
 
-    res.json({ message: "Bill generated", data })
+    res.json({
+      message: "Bill stored successfully",
+      data
+    });
 
   } catch (err) {
-    res.status(500).json(err)
+    res.status(500).json({
+      error: "Server error"
+    });
   }
-})
+});
+
+
+// GET BILLS OF PATIENT
+app.get("/bills/:patient_id", async (req, res) => {
+
+  const patient_id = req.params.patient_id;
+
+  try {
+
+    const { data, error } = await supabase
+      .from("bills")
+      .select("*")
+      .eq("patient_id", patient_id)
+      .order("bill_date", { ascending: false });
+
+    if (error) return res.status(500).json(error);
+
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    });
+  }
+});
+
+
+// PAY BILL
+app.put("/pay-bill/:bill_id", async (req, res) => {
+
+  const bill_id = req.params.bill_id;
+
+  try {
+
+    const { data, error } = await supabase
+      .from("bills")
+      .update({ payment_status: "Paid" })
+      .eq("bill_id", bill_id)
+      .select();
+
+    if (error) return res.status(500).json(error);
+
+    res.json({
+      message: "Payment updated",
+      data
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    });
+  }
+});
+
 
 
 /* =========================
@@ -444,28 +517,50 @@ app.post("/generate-bill/:appointment_id", async (req, res) => {
 ========================= */
 
 app.post("/signup", async (req, res) => {
-
   const { name, email, password } = req.body
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert([
-      {
-        user_id: uuidv4(),
-        name,
-        email,
-        password,
-        role_id: 2   // example: receptionist role
-      }
-    ])
-    .select()
+  try {
+    // 🔹 Step 1: Get role_id from roles table
+    const { data: roleData, error: roleError } = await supabase
+      .from("roles")
+      .select("role_id")
+      .eq("role_name", "receptionist") // change if needed
+      .single()
 
-  if (error) return res.status(500).json(error)
+    if (roleError || !roleData) {
+      return res.status(400).json({
+        error: "Role not found"
+      })
+    }
 
-  res.json({
-    message: "Receptionist registered successfully",
-    user: data
-  })
+    // 🔹 Step 2: Insert into users table
+    const { data, error } = await supabase
+      .from("users")
+      .insert([
+        {
+          user_id: uuidv4(),
+          name,
+          email,
+          password,
+          role_id: roleData.role_id
+        }
+      ])
+      .select()
+
+    if (error) {
+      return res.status(500).json(error)
+    }
+
+    res.json({
+      message: "User registered successfully",
+      user: data
+    })
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    })
+  }
 })
 /* =========================
    RECEPTIONIST LOGIN
@@ -540,4 +635,4 @@ const PORT = process.env.PORT || 5000;
 // Adding '0.0.0.0' is the key to making it visible to Render's port scanner
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server is live and listening on port ${PORT}`);
-}); // this is backend 
+});
