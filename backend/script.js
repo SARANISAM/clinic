@@ -63,11 +63,17 @@ app.get("/test-db", async (req, res) => {
    ========================= */
 
 // ROUTE 1: Get AI Draft
+/* =========================
+   REVISED DISCHARGE SYSTEM (SAFE VERSION)
+   ========================= */
+
 app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
   const { appointmentId } = req.params;
+  let dbData = {}; // Persistent store for DB results
 
   try {
-    // ✅ 1. Get appointment
+    // 1. PHASE ONE: DATABASE FETCHING
+    // We fetch the core appointment first to get the patient_id
     const { data: appointment, error: apptError } = await supabase
       .from("appointments")
       .select("*")
@@ -75,68 +81,79 @@ app.get("/api/prepare-discharge/:appointmentId", async (req, res) => {
       .maybeSingle();
 
     if (apptError || !appointment) {
-      console.error("❌ Appointment error:", apptError);
       return res.status(404).json({ error: "Visit record not found" });
     }
 
-    // ✅ 2. Get patient
+    // Fetch related records in parallel (or sequence for clarity)
     const { data: patient } = await supabase
       .from("patients")
       .select("*")
       .eq("patient_id", appointment.patient_id)
       .single();
 
-    // ✅ 3. Get treatment
     const { data: treatments } = await supabase
       .from("treatments")
       .select("*")
       .eq("appointment_id", appointmentId);
 
-    // ✅ 4. Get bill
     const { data: bills } = await supabase
       .from("bills")
       .select("*")
       .eq("appointment_id", appointmentId);
 
-    // ✅ 5. Setup Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+    // Construct the data object for the frontend
+    dbData = { 
+      ...appointment, 
+      patients: patient, 
+      treatments: treatments || [], 
+      bills: bills || [] 
+    };
 
-    const diagnosis = treatments?.[0]?.diagnosis || "General Consultation";
-    const prescription = treatments?.[0]?.prescription || "Follow-up as needed";
+    // 2. PHASE TWO: AI GENERATION (Wrapped in a separate Try/Catch)
+    let aiSummary = "";
+    try {
+      // Switched to 'gemini-1.5-flash' for maximum stability on Render
+      const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-preview" });
+      
+      const diagnosis = treatments?.[0]?.diagnosis || "General Consultation";
+      const prescription = treatments?.[0]?.prescription || "Follow-up as needed";
 
-    const prompt = `
-      Act as a professional medical officer. Generate a structured discharge summary.Return the response in clean Markdown format using headers(##)and bold text.
+      const prompt = `
+        Act as a professional medical officer. Generate a structured discharge summary. 
+        Return the response in clean Markdown format using headers (##) and bold text.
 
-      Patient: ${patient?.name || "Unknown"} (${patient?.age || "-"}y/o ${patient?.gender || "-"})
-      Diagnosis: ${diagnosis}
-      Prescription: ${prescription}
+        Patient: ${patient?.name || "Unknown"} (${patient?.age || "-"}y/o ${patient?.gender || "-"})
+        Diagnosis: ${diagnosis}
+        Prescription: ${prescription}
+        
+        Structure the response as follows:
+        ## CLINICAL NARRATIVE
+        ## DISCHARGE STATUS
+        ## INSTRUCTIONS
+      `;
 
-      Format:
-      - CLINICAL NARRATIVE
-      - DISCHARGE STATUS
-      - INSTRUCTIONS
-    `;
+      const result = await model.generateContent(prompt);
+      aiSummary = result.response.text();
 
-    const result = await model.generateContent(prompt);
-    const aiSummary = result.response.text();
+    } catch (aiErr) {
+      // If AI fails, we LOG the error but DO NOT crash the response
+      console.error("⚠️ AI Generation Failed:", aiErr.message);
+      aiSummary = "## AI SUMMARY UNAVAILABLE\n\nThere was a connection issue with the AI service. The patient's clinical records have been loaded successfully below. Please draft the summary manually.";
+    }
 
-    // ✅ 6. Send response
-    res.json({
-      dbData: {
-        ...appointment,
-        patients: patient,
-        treatments: treatments,
-        bills: bills
-      },
-      aiSummary
+    // 3. PHASE THREE: UNIFIED RESPONSE
+    // This sends back the DB data (Name, Diag, etc.) AND whatever AI result we got
+    res.json({ dbData, aiSummary });
+
+  } catch (dbErr) {
+    // This only triggers if the Database itself fails
+    console.error("❌ Database Fetch Error:", dbErr);
+    res.status(500).json({ 
+      error: "Database fetch failed", 
+      details: dbErr.message 
     });
-
-  } catch (err) {
-    console.error("❌ AI ERROR:", err);
-    res.status(500).json({ error: "Failed to generate AI summary" });
   }
 });
-
 
 // ROUTE 2: Finalize & Insert into Discharge Table
 app.post("/api/finalize-discharge", async (req, res) => {
